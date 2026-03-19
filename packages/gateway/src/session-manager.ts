@@ -1,13 +1,25 @@
 import { randomUUID } from "node:crypto"
-import OpenAI from "openai"
-import type { AgentEvent, Session, SessionMessage } from "./types.js"
+import { mkdirSync } from "node:fs"
+import { join, resolve } from "node:path"
+import type { AgentProvider, AgentSession } from "@openzosma/agents"
+import { PiAgentProvider } from "@openzosma/agents"
+import type { GatewayEvent, Session, SessionMessage } from "./types.js"
 
-const openai = new OpenAI()
-
-const DEFAULT_MODEL = "gpt-4o-mini"
+/**
+ * Per-session state holding the agent session and gateway-level metadata.
+ */
+interface SessionState {
+	agentSession: AgentSession
+	session: Session
+}
 
 export class SessionManager {
-	private sessions = new Map<string, Session>()
+	private sessions = new Map<string, SessionState>()
+	private provider: AgentProvider
+
+	constructor(provider?: AgentProvider) {
+		this.provider = provider ?? new PiAgentProvider()
+	}
 
 	createSession(): Session {
 		const session: Session = {
@@ -15,20 +27,38 @@ export class SessionManager {
 			createdAt: new Date().toISOString(),
 			messages: [],
 		}
-		this.sessions.set(session.id, session)
+
+		const workspaceRoot = resolve(process.env.OPENZOSMA_WORKSPACE ?? join(process.cwd(), "workspace"))
+		const sessionDir = join(workspaceRoot, "sessions", session.id)
+		mkdirSync(sessionDir, { recursive: true })
+
+		const agentSession = this.provider.createSession({
+			sessionId: session.id,
+			workspaceDir: sessionDir,
+		})
+
+		this.sessions.set(session.id, { agentSession, session })
 		return session
 	}
 
 	getSession(id: string): Session | undefined {
-		return this.sessions.get(id)
+		return this.sessions.get(id)?.session
 	}
 
-	async *sendMessage(sessionId: string, content: string, signal?: AbortSignal): AsyncGenerator<AgentEvent> {
-		const session = this.sessions.get(sessionId)
-		if (!session) {
+	/**
+	 * Send a user message and stream back gateway events.
+	 *
+	 * Delegates to the configured AgentProvider's session, mapping
+	 * AgentStreamEvents to GatewayEvents.
+	 */
+	async *sendMessage(sessionId: string, content: string, signal?: AbortSignal): AsyncGenerator<GatewayEvent> {
+		const state = this.sessions.get(sessionId)
+		if (!state) {
 			yield { type: "error", error: `Session ${sessionId} not found` }
 			return
 		}
+
+		const { agentSession, session } = state
 
 		// Store user message
 		const userMsg: SessionMessage = {
@@ -39,61 +69,33 @@ export class SessionManager {
 		}
 		session.messages.push(userMsg)
 
-		const turnId = randomUUID()
-		const messageId = randomUUID()
+		let lastAssistantText = ""
+		let lastMessageId: string | undefined
 
-		yield { type: "turn_start", id: turnId }
-		yield { type: "message_start", id: messageId }
+		for await (const event of agentSession.sendMessage(content, signal)) {
+			// AgentStreamEvent and GatewayEvent have the same shape --
+			// pass through directly, tracking text for session history.
+			const gatewayEvent: GatewayEvent = event as GatewayEvent
 
-		let fullResponse = ""
-
-		try {
-			const messages: OpenAI.ChatCompletionMessageParam[] = session.messages.map((m) => ({
-				role: m.role,
-				content: m.content,
-			}))
-
-			const stream = await openai.chat.completions.create(
-				{
-					model: DEFAULT_MODEL,
-					messages,
-					stream: true,
-				},
-				{ signal },
-			)
-
-			for await (const chunk of stream) {
-				if (signal?.aborted) {
-					break
-				}
-
-				const delta = chunk.choices[0]?.delta?.content
-				if (delta) {
-					fullResponse += delta
-					yield { type: "message_update", id: messageId, text: delta }
-				}
+			if (event.type === "message_start") {
+				lastMessageId = event.id
+				lastAssistantText = ""
+			} else if (event.type === "message_update" && event.text) {
+				lastAssistantText += event.text
 			}
-		} catch (err) {
-			if (signal?.aborted) {
-				// Cancellation is not an error
-			} else {
-				const errorMessage = err instanceof Error ? err.message : "Unknown error"
-				yield { type: "error", error: errorMessage }
-			}
+
+			yield gatewayEvent
 		}
 
-		// Store assistant message
-		if (fullResponse) {
+		// Store assistant message for session history
+		if (lastAssistantText) {
 			const assistantMsg: SessionMessage = {
-				id: messageId,
+				id: lastMessageId ?? randomUUID(),
 				role: "assistant",
-				content: fullResponse,
+				content: lastAssistantText,
 				createdAt: new Date().toISOString(),
 			}
 			session.messages.push(assistantMsg)
 		}
-
-		yield { type: "message_end", id: messageId }
-		yield { type: "turn_end", id: turnId }
 	}
 }

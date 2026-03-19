@@ -19,7 +19,7 @@
 	"dependencies": {
 		"hono": "^4.7.6",
 		"@hono/node-server": "^1.14.1",
-		"openai": "^4.85.4",
+		"@openzosma/agents": "workspace:*",
 		"ws": "^8.18.1",
 		"@openzosma/db": "workspace:*",
 		"@openzosma/auth": "workspace:*",
