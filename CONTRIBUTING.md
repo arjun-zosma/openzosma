@@ -19,6 +19,23 @@ cd openzosma
 # Install dependencies
 pnpm install
 
+# Start infrastructure (PostgreSQL with pgvector, Valkey, RabbitMQ)
+docker compose up -d
+
+# Copy environment config
+cp .env.example .env.local
+# Edit .env.local with your API keys, auth secret, encryption key, etc.
+
+# Symlink .env.local into apps/web so Next.js can find it
+ln -s ../../.env.local apps/web/.env.local
+
+# Run database migrations
+pnpm db:migrate          # Public schema tables (gateway + web app)
+pnpm db:migrate:auth     # Auth schema tables (better-auth)
+
+# Generate gRPC stubs from proto definitions
+pnpm proto:generate
+
 # Build all packages
 pnpm run build
 
@@ -26,40 +43,50 @@ pnpm run build
 pnpm run check
 ```
 
-### Running the MVP (Basic Q&A)
-
-The MVP runs a gateway server and Next.js dashboard with in-memory sessions and direct OpenAI streaming. No database, auth, or gRPC separation required.
+### Running the Application
 
 ```bash
-# Terminal 1 — Gateway (port 4000)
-OPENAI_API_KEY=sk-... pnpm --filter @openzosma/gateway dev
+# Terminal 1 -- Gateway (port 4000)
+pnpm --filter @openzosma/gateway dev
 
-# Terminal 2 — Dashboard (port 3000)
+# Terminal 2 -- Web dashboard (port 3000)
 pnpm --filter @openzosma/web dev
 ```
 
-Open http://localhost:3000, type a message, and see the streaming response. The gateway defaults to `gpt-4o-mini`. Set `GATEWAY_PORT` and `GATEWAY_HOST` to override defaults (4000 / 0.0.0.0).
+Open http://localhost:3000, sign up with email and password, and start a conversation.
 
-The dashboard connects to the gateway at `http://localhost:4000` by default. Set `NEXT_PUBLIC_GATEWAY_URL` to override.
+The gateway defaults to port 4000 (`GATEWAY_PORT`) and host 0.0.0.0 (`GATEWAY_HOST`). The dashboard connects to the gateway at `http://localhost:4000` by default (`NEXT_PUBLIC_GATEWAY_URL`).
 
-### Full Infrastructure Setup
+### Database Migrations
 
-For features that require PostgreSQL, Valkey, and RabbitMQ (auth, persistence, event bus):
+All migrations live in `packages/db/`. There are two separate migration systems:
+
+1. **`db-migrate`** -- manages `public` schema tables (gateway and web app tables)
+2. **`better-auth` CLI** -- manages `auth` schema tables (users, sessions, accounts, etc.)
+
+Both must be run before starting the application. **Order matters:** run `db:migrate` first, then `db:migrate:auth`.
 
 ```bash
-# Start infrastructure
-docker compose up -d
-
-# Copy environment config
-cp .env.example .env
-# Edit .env with your settings
-
-# Run database migrations
+# Run public schema migrations
 pnpm db:migrate
 
-# Generate gRPC stubs from proto definitions
-pnpm proto:generate
+# Run auth schema migrations
+pnpm db:migrate:auth
+
+# Roll back the last public schema migration
+pnpm db:migrate:down
+
+# Create a new migration
+pnpm db:migrate:create -- <name>
 ```
+
+Migrations read database connection info from `.env.local` (then `.env`) in the repo root. You can also pass `--env-file=<path>` explicitly:
+
+```bash
+pnpm db:migrate -- --env-file=/path/to/.env.production
+```
+
+See [`packages/db/README.md`](./packages/db/README.md) for detailed documentation on migration structure, schemas, environment variables, and conventions.
 
 ### Using the Dev Container
 
@@ -75,20 +102,51 @@ docker run -it --rm \
 
 This gives you a shell with Node.js 22, pnpm, protoc, and build tools pre-installed.
 
-### Environment Variables
+### Docker (Production)
 
-Copy `.env.example` to `.env` and fill in:
+Build individual services using multi-stage targets:
 
 ```bash
-# Required for MVP
-OPENAI_API_KEY=sk-...
+# API Gateway
+docker build --target gateway -t openzosma-gateway .
 
-# Gateway (defaults shown)
+# Orchestrator
+docker build --target orchestrator -t openzosma-orchestrator .
+```
+
+### Environment Variables
+
+Copy `.env.example` to `.env.local` and fill in:
+
+```bash
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=openzosma
+DB_USER=openzosma
+DB_PASS=openzosma
+DB_POOL_SIZE=10
+# Or set DATABASE_URL directly (takes precedence over DB_* vars), for example:
+# DATABASE_URL=postgres://openzosma:openzosma@localhost:5432/openzosma
+
+# Auth
+BETTER_AUTH_SECRET=<random-secret>
+# ENCRYPTION_KEY can be either:
+# - a 64-char hex string (used directly as a 32-byte key), or
+# - any other passphrase (a key will be derived from it)
+ENCRYPTION_KEY=<64-char-hex-string-or-passphrase>
+
+# Web app
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+NEXT_PUBLIC_GATEWAY_URL=http://localhost:4000
+
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Gateway
 GATEWAY_PORT=4000
 GATEWAY_HOST=0.0.0.0
-
-# Database (required for full setup, not MVP)
-DATABASE_URL=postgresql://openzosma:openzosma@localhost:5432/openzosma
 
 # Valkey (Redis-compatible)
 VALKEY_URL=redis://localhost:6379
@@ -96,17 +154,15 @@ VALKEY_URL=redis://localhost:6379
 # RabbitMQ
 RABBITMQ_URL=amqp://openzosma:openzosma@localhost:5672
 
-# Auth
-BETTER_AUTH_SECRET=<random-secret>
-
 # gRPC
+ORCHESTRATOR_GRPC_HOST=0.0.0.0
 ORCHESTRATOR_GRPC_PORT=50051
 SANDBOX_GRPC_PORT=50052
 
 # Sandbox pool
 SANDBOX_POOL_SIZE=2
 
-# LLM providers (at least one required for agent functionality)
+# LLM providers (at least one required)
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 ```
@@ -119,14 +175,16 @@ ANTHROPIC_API_KEY=
 - No `any` types unless absolutely necessary
 - No inline imports -- always standard top-level imports
 - No global/module-level mutable state
-- No ORM -- raw SQL via `pg`, migrations via `node-pg-migrate`
+- No ORM -- raw SQL via `pg`, migrations via `db-migrate`
+- Biome for linting and formatting (tabs, 120 line width, double quotes)
+- Run `pnpm run lint:fix` to auto-fix formatting issues
 
 ### Database
 
-- Migrations are SQL files in `packages/db/migrations/`
-- Create new migration: `pnpm --filter @openzosma/db run migrate create <name>`
-- Run migrations: `pnpm --filter @openzosma/db run migrate up`
-- Rollback: `pnpm --filter @openzosma/db run migrate down`
+- Migrations live in `packages/db/migrations/` using `db-migrate` format (JS + sqls/)
+- Create new migration: `pnpm db:migrate:create -- <name>`
+- Run migrations: `pnpm db:migrate`
+- Rollback: `pnpm db:migrate:down`
 - Parameterized queries only (`$1`, `$2`, etc.), never string interpolation
 
 ### gRPC / Protobuf
@@ -163,9 +221,9 @@ ANTHROPIC_API_KEY=
 ## Project Layout
 
 ```
+apps/             Frontend applications (web dashboard, mobile)
 packages/         Backend packages (each is an independent npm package)
 proto/            Protobuf service definitions (shared across packages)
-apps/             Frontend applications (web dashboard, mobile)
 infra/            Infrastructure configs (NemoClaw sandbox Dockerfile, K8s manifests)
 docs/             Phase implementation plans and design docs
 ```

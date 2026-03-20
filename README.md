@@ -1,247 +1,119 @@
 # OpenZosma
 
-Open-source, self-hosted AI agent platform. Exposes agents via [A2A protocol](https://github.com/google/A2A), REST API, WebSocket, and gRPC. Sandboxes each session using [NVIDIA NemoClaw](https://github.com/NVIDIA/NemoClaw) (running agents inside [OpenShell](https://github.com/NVIDIA/OpenShell) sandboxes with Landlock + seccomp + network namespace isolation). Supports multiple communication channels: Web, Mobile, WhatsApp, Slack, and agent-to-agent.
+**Build AI teams that work alongside yours -- accessible from your phone.**
 
-Built on top of [pi-mono](https://github.com/badlogic/pi-mono) (TypeScript agent SDK).
+OpenZosma is an open-source, self-hosted platform for creating hierarchical AI agents that act as digital work twins for your team. Configure an agent org chart that mirrors your business structure, delegate tasks through natural conversation, and manage your operations from anywhere -- your phone, WhatsApp, Slack, or a web dashboard. No laptop required.
 
-## Getting Started
+## How It Works
 
-### Prerequisites
+You define a hierarchy of agents that mirrors your organization. Each agent has a role, a set of capabilities, and knows which agents report to it. You talk to the top-level agent, and it delegates work down the chain.
 
-- [Node.js 22+](https://nodejs.org/) (see `.nvmrc`)
-- [pnpm 9+](https://pnpm.io/)
-- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
-- [NemoClaw CLI](https://github.com/NVIDIA/NemoClaw) (for sandbox development)
-
-### Quick Start (MVP)
-
-The fastest way to get a working end-to-end flow (ask a question, get a streaming LLM response):
-
-```bash
-git clone https://github.com/zosmaai/openzosma.git
-cd openzosma
-pnpm install
-pnpm run build
-
-# Terminal 1 — Gateway (port 4000)
-OPENAI_API_KEY=sk-... pnpm --filter @openzosma/gateway dev
-
-# Terminal 2 — Dashboard (port 3000)
-pnpm --filter @openzosma/web dev
+```
+You (from your phone, WhatsApp, or Slack)
+  |
+  CEO Agent
+  |
+  +-- Sales Manager Agent
+  |       +-- Lead Qualifier Agent
+  |       +-- CRM Updater Agent
+  |
+  +-- Operations Agent
+  |       +-- Invoice Processor Agent
+  |       +-- Inventory Tracker Agent
+  |
+  +-- Support Agent
+          +-- Ticket Router Agent
+          +-- FAQ Responder Agent
 ```
 
-Open http://localhost:3000, type a message, and see the streaming response.
+**Example:** You message your CEO Agent from WhatsApp: "What were last week's sales numbers and are there any open support tickets over 48 hours?" The CEO Agent delegates to the Sales Manager Agent and Support Agent in parallel. They query your connected systems, and you get a consolidated answer back -- all from a single message on your phone.
 
-The MVP gateway uses in-memory sessions and calls OpenAI directly (no database, no auth, no gRPC separation). See [ARCHITECTURE.md](./ARCHITECTURE.md) for details on what is implemented vs. planned.
+Agents don't replace your team. They handle the routine lookups, status checks, data entry, and coordination that eat up your team's day -- so your people can focus on work that requires human judgment.
 
 > **Note:** The gateway `dev` script loads `../../.env` automatically via `--env-file`. If you need a different env file, run `npx tsx --env-file=<path> src/index.ts` from `packages/gateway/`. When `.env` has `DB_HOST` or `DATABASE_URL` set, the gateway connects to PostgreSQL and enables A2A per-agent routes.
 
 ### Full Setup
+## Key Features
+
+- **Hierarchical agents** -- Configure org-chart-like agent trees. Manager agents delegate to specialist agents automatically.
+- **Talk from anywhere** -- Web dashboard, mobile app, WhatsApp, Slack, or agent-to-agent via the [A2A protocol](https://github.com/google/A2A).
+- **Self-hosted** -- Your data stays on your infrastructure. One instance = one organization.
+- **Connect your tools** -- Integrate with databases, CRMs, email, and other business systems through configurable connectors.
+- **Secure by design** -- Each agent session runs in an isolated sandbox ([NVIDIA NemoClaw](https://github.com/NVIDIA/NemoClaw) + [OpenShell](https://github.com/NVIDIA/OpenShell)) with Landlock, seccomp, and network namespace isolation.
+- **Open source** -- Apache 2.0 license. No vendor lock-in, no usage fees, no data leaving your network.
+
+## Quick Start
 
 ```bash
-# Clone the repo
 git clone https://github.com/zosmaai/openzosma.git
 cd openzosma
-
-# Install dependencies
 pnpm install
 
-# Start infrastructure (PostgreSQL, Valkey, RabbitMQ)
+# Start services: PostgreSQL (with pgvector), Valkey, and RabbitMQ
 docker compose up -d
 
-# Copy environment config
+# Configure environment
 cp .env.example .env.local
-# Edit .env.local with your settings (LLM API keys, auth secret, etc.)
-
-# Symlink .env.local into apps/web so Next.js can find it
 ln -s ../../.env.local apps/web/.env.local
+# Edit .env.local with your API keys and secrets
 
-# Run database migrations (see "Database Migrations" section below)
-pnpm db:migrate        # Public schema tables (gateway + web app)
-pnpm db:migrate:auth   # Auth schema tables (better-auth)
-
-# Generate gRPC stubs from proto definitions
-pnpm proto:generate
-
-# Build all packages
-pnpm run build
-
-# Type check
-pnpm run check
-```
-
-### Database Migrations
-
-All migrations live in `packages/db/`. There are two separate migration systems:
-
-1. **`db-migrate`** -- manages `public` schema tables (gateway and web app tables)
-2. **`better-auth` CLI** -- manages `auth` schema tables (users, sessions, accounts, etc.)
-
-Both must be run before starting the application.
-
-#### Prerequisites
-
-PostgreSQL with the [pgvector](https://github.com/pgvector/pgvector) extension must be running and accessible. The default `docker compose up -d` uses the `pgvector/pgvector:pg16` image, which includes pgvector out of the box. If you manage PostgreSQL yourself, install the pgvector extension before running migrations.
-
-#### Environment Variables
-
-Migrations read database connection info from environment variables. They look for an `.env.local` file first, then `.env` in the repo root. You can also pass `--env-file=<path>` explicitly.
-
-| Variable | Default | Description |
-|---|---|---|
-| `DATABASE_URL` | _(built from DB\_\* vars)_ | Full PostgreSQL connection string |
-| `DB_HOST` | `localhost` | PostgreSQL host |
-| `DB_PORT` | `5432` | PostgreSQL port |
-| `DB_NAME` | `openzosma` | Database name |
-| `DB_USER` | `openzosma` | Database user |
-| `DB_PASS` | `openzosma` | Database password |
-
-If `DATABASE_URL` is set, it takes precedence. Otherwise it is constructed from the individual `DB_*` variables.
-
-#### Running Migrations
-
-```bash
-# 1. Run public schema migrations (gateway + web app tables)
+# Run database migrations
 pnpm db:migrate
-
-# 2. Run auth schema migrations (better-auth tables)
 pnpm db:migrate:auth
+
+# Build and start
+pnpm run build
+pnpm --filter @openzosma/gateway dev   # Terminal 1 (port 4000)
+pnpm --filter @openzosma/web dev       # Terminal 2 (port 3000)
 ```
 
-**Order matters:** Run `db:migrate` first (creates `public` schema tables), then `db:migrate:auth` (creates `auth` schema and its tables).
+Open http://localhost:3000, sign up, and start a conversation.
 
-#### Rolling Back
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full development setup, environment variables, and conventions.
 
-```bash
-# Roll back the last public schema migration
-pnpm db:migrate:down
-```
-
-Auth migrations are managed by the better-auth CLI and do not have a rollback command.
-
-#### Creating New Migrations
-
-```bash
-# Creates a new migration with timestamp prefix + JS boilerplate + SQL files
-pnpm db:migrate:create -- <name>
-```
-
-This generates three files in `packages/db/migrations/`:
+## Architecture
 
 ```
-migrations/
-  <timestamp>-<name>.js                  # JS boilerplate (reads SQL files)
-  sqls/<timestamp>-<name>-up.sql         # Write your UP SQL here
-  sqls/<timestamp>-<name>-down.sql       # Write your DOWN SQL here
-```
-
-#### Using an Explicit Env File
-
-```bash
-pnpm db:migrate -- --env-file=/path/to/.env.production
-pnpm db:migrate:auth -- --env-file=/path/to/.env.production
-```
-
-See [`packages/db/README.md`](./packages/db/README.md) for detailed documentation on migration structure, schemas, and conventions.
-
-### Docker (Development)
-
-For contributors who prefer not to install Node.js and pnpm locally:
-
-```bash
-docker build -f Dockerfile.dev -t openzosma-dev .
-docker run -it --rm -v $(pwd):/app -p 4000:4000 -p 50051:50051 openzosma-dev bash
-```
-
-### Docker (Production)
-
-Build individual services using multi-stage targets:
-
-```bash
-# API Gateway
-docker build --target gateway -t openzosma-gateway .
-
-# Orchestrator
-docker build --target orchestrator -t openzosma-orchestrator .
-```
-
-## Architecture Overview
-
-```
-Clients (Web, Mobile, Slack, WhatsApp, A2A agents)
+Clients (Web, Mobile, WhatsApp, Slack, A2A agents)
                     |
-            API Gateway (Hono)
-       REST / WebSocket / A2A / gRPC
+            API Gateway (REST / WebSocket / A2A / gRPC)
                     |
-          Orchestrator (gRPC)
-        (session mgmt, routing,
-         configurable quotas)
+              Orchestrator (session management, routing, quotas)
                     |
-        +-----------+-----------+
-        |           |           |
-   NemoClaw     NemoClaw     NemoClaw
-   Sandbox A    Sandbox B    Sandbox C
-  (OpenShell     (OpenShell    (OpenShell
-   isolation,    isolation,    isolation,
-   pi-agent      pi-agent     pi-agent
-   via gRPC)     via gRPC)    via gRPC)
+            +-------+-------+
+            |       |       |
+        Sandbox  Sandbox  Sandbox
+        (isolated agent sessions)
 ```
 
-Each agent session runs inside an isolated NemoClaw sandbox (Landlock + seccomp + network namespace isolation, deny-by-default network policies). The orchestrator manages sandbox lifecycle and routes messages. Internal communication between gateway, orchestrator, and sandboxes uses gRPC with bidirectional streaming. External clients use REST, WebSocket, or A2A.
+Each agent session runs inside an isolated sandbox. The orchestrator manages sandbox lifecycle and routes messages. External clients connect via REST, WebSocket, or A2A. Internal communication uses gRPC with bidirectional streaming.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 
-## Repository Structure
+## Documentation
 
-```
-openzosma/
-├── packages/
-│   ├── db/                   # db-migrate migrations, raw SQL queries (PostgreSQL)
-│   ├── auth/                 # Better Auth setup
-│   ├── gateway/              # Hono HTTP server (REST + WS + A2A)
-│   ├── orchestrator/         # Session lifecycle, sandbox pool
-│   ├── sandbox/              # NemoClaw sandbox wrapper
-│   ├── a2a/                  # A2A protocol implementation
-│   ├── grpc/                 # Proto definitions + generated stubs
-│   ├── adapters/
-│   │   ├── web/              # WebSocket adapter
-│   │   ├── whatsapp/         # WhatsApp Business API
-│   │   └── slack/            # Slack adapter
-│   ├── skills/
-│   │   └── reports/          # PDF, PPTX, charts
-│   └── sdk/                  # Client SDK (@openzosma/sdk)
-├── apps/
-│   ├── web/                  # Next.js dashboard (client-only)
-│   └── mobile/               # React Native app (deferred)
-├── proto/                    # .proto service definitions
-├── infra/
-│   ├── openshell/            # NemoClaw sandbox Dockerfile + policies
-│   └── k8s/                  # Kubernetes manifests (production)
-├── docs/                     # Phase-by-phase implementation plans
-├── ARCHITECTURE.md           # System architecture
-├── AGENTS.md                 # Instructions for AI coding agents
-├── CONTRIBUTING.md           # Development setup and conventions
-└── LICENSE                   # Apache 2.0
-```
+| Document | Description |
+|---|---|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | System design, component interactions, data flow |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | Development setup, environment variables, conventions |
+| [packages/db/README.md](./packages/db/README.md) | Database migrations, schemas, query module |
+| [docs/](./docs/) | Phase-by-phase implementation plans |
 
 ## Tech Stack
 
 | Component | Technology |
 |---|---|
 | Runtime | Node.js 22 (TypeScript) |
-| Agent SDK | pi-mono (`pi-agent-core`, `pi-ai`, `pi-coding-agent`) |
 | HTTP Server | Hono |
 | Internal RPC | gRPC (`@grpc/grpc-js`, `protobuf-ts`) |
-| A2A Protocol | `@a2a-js/sdk` + Hono |
 | Database | PostgreSQL (raw SQL via `pg`, migrations via `db-migrate`) |
-| Cache / Pub-Sub | Valkey (Redis-compatible) |
-| Job Queue | RabbitMQ |
 | Auth | Better Auth |
-| Sandbox | NVIDIA NemoClaw + OpenShell (Landlock, seccomp, network namespace isolation) |
-| Web Dashboard | Next.js |
-| Mobile | React Native (deferred) |
+| Sandbox | NVIDIA NemoClaw + OpenShell |
+| Web Dashboard | Next.js 16, React 19, Tailwind CSS v4 |
+| Mobile | React Native (planned) |
+| Agent Protocol | [Google A2A](https://github.com/google/A2A) |
 
-## Implementation Phases
+## Repository Structure
 
 | Phase | Description | Duration | Status |
 |-------|-------------|----------|--------|
@@ -302,6 +174,27 @@ One instance = one organization. Deploy with Docker Compose for development or K
 - **[NVIDIA NemoClaw](https://github.com/NVIDIA/NemoClaw)** -- Sandbox runtime. Runs agents inside OpenShell sandboxes with Landlock + seccomp + network namespace isolation, deny-by-default network policies, and inference routing.
 - **[NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell)** -- Underlying sandbox infrastructure. K3s-based isolation with declarative YAML policies.
 - **[Google A2A](https://github.com/google/A2A)** -- Agent-to-Agent protocol. JSON-RPC 2.0 over HTTPS with SSE streaming and gRPC support.
+```
+openzosma/
+  apps/
+    web/                  Next.js dashboard
+    mobile/               React Native app (planned)
+  packages/
+    gateway/              API gateway (REST + WebSocket + A2A)
+    orchestrator/         Session lifecycle, sandbox pool
+    agents/               Agent provider interface + implementations
+    db/                   Database migrations and query module
+    auth/                 Better Auth setup
+    sandbox/              NemoClaw sandbox wrapper
+    a2a/                  A2A protocol implementation
+    grpc/                 Proto definitions + generated stubs
+    sdk/                  Client SDK (@openzosma/sdk)
+    adapters/             Channel adapters (Slack, WhatsApp)
+    skills/               Enterprise skills (reports, charts)
+  proto/                  Protobuf service definitions
+  infra/                  NemoClaw sandbox configs, Kubernetes manifests
+  docs/                   Implementation plans and design docs
+```
 
 ## License
 
