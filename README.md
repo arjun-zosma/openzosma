@@ -247,7 +247,7 @@ openzosma/
 |-------|-------------|----------|--------|
 | [Phase 1](./docs/PHASE-1-MULTITENANT.md) | Multi-instance pi-agent refactor (in pi-mono) | 3-4 days | Complete |
 | [Phase 2](./docs/PHASE-2-MONOREPO.md) | OpenZosma monorepo setup + DB schema + auth | 1 week | Complete |
-| [Phase 3](./docs/PHASE-3-GATEWAY.md) | API Gateway + A2A + gRPC server | 1 week | In progress (MVP) |
+| [Phase 3](./docs/PHASE-3-GATEWAY.md) | API Gateway + A2A + gRPC server | 1 week | In progress (REST + A2A done, gRPC/auth pending) |
 | [Phase 4](./docs/PHASE-4-ORCHESTRATOR.md) | Orchestrator + NemoClaw sandbox integration | 1.5 weeks | Not started |
 | [Phase 5](./docs/PHASE-5-ADAPTERS.md) | Channel adapters (Slack, WhatsApp) | 1 week | Not started |
 | [Phase 6](./docs/PHASE-6-SKILLS.md) | Enterprise skills (database tool, reports) | 2 weeks | Not started |
@@ -255,6 +255,42 @@ openzosma/
 
 **MVP (Phases 1-4):** ~4 weeks
 **Full platform (Phases 1-7):** ~10 weeks
+
+## Gateway API
+
+The gateway (`packages/gateway/`) exposes REST, WebSocket, and A2A protocol endpoints on port 4000. See [PHASE-3-GATEWAY.md](./docs/PHASE-3-GATEWAY.md) for the full spec.
+
+### REST Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `GET` | `/api/v1/agents` | List agent configurations |
+| `GET` | `/api/v1/agents/:id` | Get agent configuration |
+| `POST` | `/api/v1/sessions` | Create a session |
+| `GET` | `/api/v1/sessions/:id` | Get session details |
+| `DELETE` | `/api/v1/sessions/:id` | Delete a session |
+| `POST` | `/api/v1/sessions/:id/messages` | Send a message |
+| `GET` | `/api/v1/sessions/:id/messages` | List messages |
+| `GET` | `/api/v1/sessions/:id/stream` | SSE event stream |
+| `POST` | `/api/v1/api-keys` | Create an API key |
+| `GET` | `/api/v1/api-keys` | List API keys |
+| `DELETE` | `/api/v1/api-keys/:id` | Delete an API key |
+
+### A2A Protocol Endpoints
+
+Each agent configuration is exposed as a separate A2A agent with its own card and JSON-RPC endpoint.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/.well-known/agent.json` | Default agent card (first config) |
+| `GET` | `/a2a/agents` | List all agent cards |
+| `GET` | `/a2a/agents/:configId/agent.json` | Agent card for a specific config |
+| `POST` | `/a2a/agents/:configId` | JSON-RPC 2.0 (`tasks/send`, `tasks/sendSubscribe`, `tasks/get`, `tasks/cancel`) |
+
+### Postman Collection
+
+Import [`docs/openzosma-gateway.postman_collection.json`](./docs/openzosma-gateway.postman_collection.json) into Postman to get all gateway endpoints pre-configured. The collection uses a `base_url` variable (default `http://localhost:4000`) and auto-captures IDs from responses into collection variables for chained requests.
 
 ## Self-Hosted
 
