@@ -26,9 +26,6 @@ docker compose up -d
 cp .env.example .env.local
 # Edit .env.local with your API keys, auth secret, encryption key, etc.
 
-# Symlink .env.local into apps/web so Next.js can find it
-ln -s ../../.env.local apps/web/.env.local
-
 # Run database migrations
 pnpm db:migrate          # Public schema tables (gateway + web app)
 pnpm db:migrate:auth     # Auth schema tables (better-auth)

@@ -30,7 +30,7 @@ You (from your phone, WhatsApp, or Slack)
 
 Agents don't replace your team. They handle the routine lookups, status checks, data entry, and coordination that eat up your team's day -- so your people can focus on work that requires human judgment.
 
-> **Note:** The gateway `dev` script loads `../../.env` automatically via `--env-file`. If you need a different env file, run `npx tsx --env-file=<path> src/index.ts` from `packages/gateway/`. When `.env` has `DB_HOST` or `DATABASE_URL` set, the gateway connects to PostgreSQL and enables A2A per-agent routes.
+> **Note:** The gateway `dev` script loads `../../.env.local` automatically via `--env-file`. If you need a different env file, run `npx tsx --env-file=<path> src/index.ts` from `packages/gateway/`. When `.env.local` has `DB_HOST` or `DATABASE_URL` set, the gateway connects to PostgreSQL and enables A2A per-agent routes.
 
 ### Full Setup
 ## Key Features
@@ -54,7 +54,6 @@ docker compose up -d
 
 # Configure environment
 cp .env.example .env.local
-ln -s ../../.env.local apps/web/.env.local
 # Edit .env.local with your API keys and secrets
 
 # Run database migrations

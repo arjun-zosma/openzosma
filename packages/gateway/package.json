@@ -14,7 +14,7 @@
 	"scripts": {
 		"build": "tsc",
 		"check": "tsc --noEmit",
-		"dev": "tsx watch --env-file=../../.env src/index.ts"
+		"dev": "tsx watch --env-file=../../.env.local src/index.ts"
 	},
 	"dependencies": {
 		"@hono/node-server": "^1.14.1",
