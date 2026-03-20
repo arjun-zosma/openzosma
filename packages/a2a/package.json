@@ -16,7 +16,8 @@
 		"check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@openzosma/db": "workspace:*"
+		"@openzosma/db": "workspace:*",
+		"a2a-js": "^0.2.0"
 	},
 	"devDependencies": {
 		"@types/node": "^22.15.2",

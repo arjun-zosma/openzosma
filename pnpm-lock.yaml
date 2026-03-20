@@ -240,6 +240,9 @@ importers:
       '@openzosma/db':
         specifier: workspace:*
         version: link:../db
+      a2a-js:
+        specifier: ^0.2.0
+        version: 0.2.0
     devDependencies:
       '@types/node':
         specifier: ^22.15.2
@@ -351,6 +354,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.14.1
         version: 1.19.11(hono@4.12.8)
+      '@openzosma/a2a':
+        specifier: workspace:*
+        version: link:../a2a
       '@openzosma/agents':
         specifier: workspace:*
         version: link:../agents
