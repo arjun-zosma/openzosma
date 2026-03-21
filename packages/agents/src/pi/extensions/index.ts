@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { applySubagentEnv, isPiAvailable, syncSubagentDefinitions, syncSubagentsConfig } from "./subagents.js";
 import { syncWebSearchConfig } from "./web-search.js";
+import { syncGuardrailsConfig } from "./guard-rails.js";
 
 const PI_GLOBAL_EXTENSIONS_DIR = join(homedir(), ".pi", "agent", "extensions");
 
@@ -32,6 +33,7 @@ export function bootstrapPiExtensions(): PiExtensionBootstrapResult {
     isGloballyInstalled("web-access") ? null : resolvePackageFile("pi-web-access", "index.ts"),
     piAvailable && !isGloballyInstalled("subagent") ? resolvePackageFile("pi-subagents", "index.ts") : null,
     piAvailable && !isGloballyInstalled("subagent") ? resolvePackageFile("pi-subagents", "notify.ts") : null,
+    !isGloballyInstalled("guardrails") ? resolvePackageFile("@aliou/pi-guardrails", "src/index.ts") : null,
   ].filter((p): p is string => Boolean(p));
 
   if (!piAvailable) {
@@ -40,7 +42,7 @@ export function bootstrapPiExtensions(): PiExtensionBootstrapResult {
 
   applySubagentEnv();
 
-  const configPaths = [syncWebSearchConfig(), syncSubagentsConfig()];
+  const configPaths = [syncWebSearchConfig(), syncSubagentsConfig(), syncGuardrailsConfig()];
   syncSubagentDefinitions();
 
   return { extensionPaths, configPaths };

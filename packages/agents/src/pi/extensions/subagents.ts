@@ -3,33 +3,27 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-
-export interface OpenZosmaSubagentConfig {
-  asyncByDefault?: boolean;
-  defaultSessionDir?: string;
-}
+import { SUBAGENTS_CONFIG } from "../config.js";
+import type { SubagentsExtensionConfig } from "../extension-types.js";
 
 export function getSubagentsConfigPath(): string {
   return join(homedir(), ".pi", "agent", "extensions", "subagent", "config.json");
 }
 
-export function buildSubagentsConfig(): OpenZosmaSubagentConfig {
-  return {
-    asyncByDefault: process.env.OPENZOSMA_PI_SUBAGENT_ASYNC_BY_DEFAULT === "true",
-    defaultSessionDir: process.env.OPENZOSMA_PI_SUBAGENT_SESSION_DIR,
-  };
-}
-
-export function syncSubagentsConfig(config = buildSubagentsConfig()): string {
+export function syncSubagentsConfig(config: SubagentsExtensionConfig = SUBAGENTS_CONFIG): string {
   const configPath = getSubagentsConfigPath();
   mkdirSync(dirname(configPath), { recursive: true });
-  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+  const payload = {
+    asyncByDefault: config.asyncByDefault,
+    defaultSessionDir: config.sessionDir,
+  };
+  writeFileSync(configPath, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
   return configPath;
 }
 
-export function applySubagentEnv(): void {
-  if (process.env.OPENZOSMA_PI_SUBAGENT_MAX_DEPTH && !process.env.PI_SUBAGENT_MAX_DEPTH) {
-    process.env.PI_SUBAGENT_MAX_DEPTH = process.env.OPENZOSMA_PI_SUBAGENT_MAX_DEPTH;
+export function applySubagentEnv(config: SubagentsExtensionConfig = SUBAGENTS_CONFIG): void {
+  if (config.maxDepth !== undefined && !process.env.PI_SUBAGENT_MAX_DEPTH) {
+    process.env.PI_SUBAGENT_MAX_DEPTH = String(config.maxDepth);
   }
 }
 
