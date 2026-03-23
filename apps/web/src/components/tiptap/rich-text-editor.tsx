@@ -1,7 +1,6 @@
 "use client"
 import "./tiptap.css"
 import { TipTapFloatingMenu } from "@/src/components/tiptap/extensions/floating-menu"
-import SearchAndReplace from "@/src/components/tiptap/extensions/search-and-replace"
 import { cn } from "@/src/lib/utils"
 import { Color } from "@tiptap/extension-color"
 import Highlight from "@tiptap/extension-highlight"
@@ -62,7 +61,6 @@ const extensions = [
 	Highlight.configure({
 		multicolor: true,
 	}),
-	SearchAndReplace,
 	Typography,
 ]
 

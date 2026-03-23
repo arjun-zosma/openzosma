@@ -11,12 +11,10 @@ import { CodeBlockToolbar } from "./code-block"
 import { ColorHighlightToolbar } from "./color-and-highlight"
 import { HeadingsToolbar } from "./headings"
 import { HorizontalRuleToolbar } from "./horizontal-rule"
-import { ImagePlaceholderToolbar } from "./image-placeholder-toolbar"
 import { ItalicToolbar } from "./italic"
 import { LinkToolbar } from "./link"
 import { OrderedListToolbar } from "./ordered-list"
 import { RedoToolbar } from "./redo"
-import { SearchAndReplaceToolbar } from "./search-and-replace-toolbar"
 import { StrikeThroughToolbar } from "./strikethrough"
 import { ToolbarProvider } from "./toolbar-provider"
 import { UnderlineToolbar } from "./underline"
@@ -61,14 +59,10 @@ export const EditorToolbar = ({ editor }: { editor: Editor }) => {
 								<Separator orientation="vertical" className="mx-1 h-7" />
 
 								{/* Media & Styling Group */}
-								<ImagePlaceholderToolbar />
 								<ColorHighlightToolbar />
 								<Separator orientation="vertical" className="mx-1 h-7" />
 
 								<div className="flex-1" />
-
-								{/* Utility Group */}
-								<SearchAndReplaceToolbar />
 							</div>
 						</div>
 						<ScrollBar className="hidden" orientation="horizontal" />
