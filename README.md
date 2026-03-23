@@ -33,14 +33,20 @@ Agents don't replace your team. They handle the routine lookups, status checks, 
 > **Note:** The gateway `dev` script loads `../../.env.local` automatically via `--env-file`. If you need a different env file, run `npx tsx --env-file=<path> src/index.ts` from `packages/gateway/`. When `.env.local` has `DB_HOST` or `DATABASE_URL` set, the gateway connects to PostgreSQL and enables A2A per-agent routes.
 
 ### Full Setup
+
 ## Key Features
 
-- **Hierarchical agents** -- Configure org-chart-like agent trees. Manager agents delegate to specialist agents automatically.
-- **Talk from anywhere** -- Web dashboard, mobile app, WhatsApp, Slack, or agent-to-agent via the [A2A protocol](https://github.com/google/A2A).
-- **Self-hosted** -- Your data stays on your infrastructure. One instance = one organization.
-- **Connect your tools** -- Integrate with databases, CRMs, email, and other business systems through configurable connectors.
-- **Secure by design** -- Each agent session runs in an isolated sandbox ([NVIDIA NemoClaw](https://github.com/NVIDIA/NemoClaw) + [OpenShell](https://github.com/NVIDIA/OpenShell)) with Landlock, seccomp, and network namespace isolation.
-- **Open source** -- Apache 2.0 license. No vendor lock-in, no usage fees, no data leaving your network.
+* **Hierarchical agents** -- Configure org-chart-like agent trees. Manager agents delegate to specialist agents automatically.
+
+* **Talk from anywhere** -- Web dashboard, mobile app, WhatsApp, Slack, or agent-to-agent via the [A2A protocol](https://github.com/google/A2A).
+
+* **Self-hosted** -- Your data stays on your infrastructure. One instance = one organization.
+
+* **Connect your tools** -- Integrate with databases, CRMs, email, and other business systems through configurable connectors.
+
+* **Secure by design** -- Each agent session runs in an isolated sandbox ([NVIDIA NemoClaw](https://github.com/NVIDIA/NemoClaw) + [OpenShell](https://github.com/NVIDIA/OpenShell)) with Landlock, seccomp, and network namespace isolation.
+
+* **Open source** -- Apache 2.0 license. No vendor lock-in, no usage fees, no data leaving your network.
 
 ## Quick Start
 
@@ -66,7 +72,7 @@ pnpm --filter @openzosma/gateway dev   # Terminal 1 (port 4000)
 pnpm --filter @openzosma/web dev       # Terminal 2 (port 3000)
 ```
 
-Open http://localhost:3000, sign up, and start a conversation.
+Open <http://localhost:3000>, sign up, and start a conversation.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full development setup, environment variables, and conventions.
 
@@ -91,41 +97,41 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 
 ## Documentation
 
-| Document | Description |
-|---|---|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | System design, component interactions, data flow |
-| [CONTRIBUTING.md](./CONTRIBUTING.md) | Development setup, environment variables, conventions |
-| [packages/db/README.md](./packages/db/README.md) | Database migrations, schemas, query module |
-| [docs/](./docs/) | Phase-by-phase implementation plans |
+| Document                                         | Description                                           |
+| ------------------------------------------------ | ----------------------------------------------------- |
+| [ARCHITECTURE.md](./ARCHITECTURE.md)             | System design, component interactions, data flow      |
+| [CONTRIBUTING.md](./CONTRIBUTING.md)             | Development setup, environment variables, conventions |
+| [packages/db/README.md](./packages/db/README.md) | Database migrations, schemas, query module            |
+| [docs/](./docs/)                                 | Phase-by-phase implementation plans                   |
 
 ## Tech Stack
 
-| Component | Technology |
-|---|---|
-| Runtime | Node.js 22 (TypeScript) |
-| HTTP Server | Hono |
-| Internal RPC | gRPC (`@grpc/grpc-js`, `protobuf-ts`) |
-| Database | PostgreSQL (raw SQL via `pg`, migrations via `db-migrate`) |
-| Auth | Better Auth |
-| Sandbox | NVIDIA NemoClaw + OpenShell |
-| Web Dashboard | Next.js 16, React 19, Tailwind CSS v4 |
-| Mobile | React Native (planned) |
-| Agent Protocol | [Google A2A](https://github.com/google/A2A) |
+| Component      | Technology                                                 |
+| -------------- | ---------------------------------------------------------- |
+| Runtime        | Node.js 22 (TypeScript)                                    |
+| HTTP Server    | Hono                                                       |
+| Internal RPC   | gRPC (`@grpc/grpc-js`, `protobuf-ts`)                      |
+| Database       | PostgreSQL (raw SQL via `pg`, migrations via `db-migrate`) |
+| Auth           | Better Auth                                                |
+| Sandbox        | NVIDIA NemoClaw + OpenShell                                |
+| Web Dashboard  | Next.js 16, React 19, Tailwind CSS v4                      |
+| Mobile         | React Native (planned)                                     |
+| Agent Protocol | [Google A2A](https://github.com/google/A2A)                |
 
 ## Repository Structure
 
-| Phase | Description | Duration | Status |
-|-------|-------------|----------|--------|
-| [Phase 1](./docs/PHASE-1-MULTITENANT.md) | Multi-instance pi-agent refactor (in pi-mono) | 3-4 days | Complete |
-| [Phase 2](./docs/PHASE-2-MONOREPO.md) | OpenZosma monorepo setup + DB schema + auth | 1 week | Complete |
-| [Phase 3](./docs/PHASE-3-GATEWAY.md) | API Gateway + A2A + gRPC server | 1 week | In progress (REST + A2A done, gRPC/auth pending) |
-| [Phase 4](./docs/PHASE-4-ORCHESTRATOR.md) | Orchestrator + NemoClaw sandbox integration | 1.5 weeks | Not started |
-| [Phase 5](./docs/PHASE-5-ADAPTERS.md) | Channel adapters (Slack, WhatsApp) | 1 week | Not started |
-| [Phase 6](./docs/PHASE-6-SKILLS.md) | Enterprise skills (database tool, reports) | 2 weeks | Not started |
-| [Phase 7](./docs/PHASE-7-DASHBOARD.md) | Web dashboard (Next.js) | 2 weeks | In progress (MVP) |
+| Phase                                     | Description                                   | Duration  | Status                                           |
+| ----------------------------------------- | --------------------------------------------- | --------- | ------------------------------------------------ |
+| [Phase 1](./docs/PHASE-1-MULTITENANT.md)  | Multi-instance pi-agent refactor (in pi-mono) | 3-4 days  | Complete                                         |
+| [Phase 2](./docs/PHASE-2-MONOREPO.md)     | OpenZosma monorepo setup + DB schema + auth   | 1 week    | Complete                                         |
+| [Phase 3](./docs/PHASE-3-GATEWAY.md)      | API Gateway + A2A + gRPC server               | 1 week    | In progress (REST + A2A done, gRPC/auth pending) |
+| [Phase 4](./docs/PHASE-4-ORCHESTRATOR.md) | Orchestrator + NemoClaw sandbox integration   | 1.5 weeks | Not started                                      |
+| [Phase 5](./docs/PHASE-5-ADAPTERS.md)     | Channel adapters (Slack, WhatsApp)            | 1 week    | Not started                                      |
+| [Phase 6](./docs/PHASE-6-SKILLS.md)       | Enterprise skills (database tool, reports)    | 2 weeks   | Not started                                      |
+| [Phase 7](./docs/PHASE-7-DASHBOARD.md)    | Web dashboard (Next.js)                       | 2 weeks   | In progress (MVP)                                |
 
-**MVP (Phases 1-4):** ~4 weeks
-**Full platform (Phases 1-7):** ~10 weeks
+**MVP (Phases 1-4):** \~4 weeks
+**Full platform (Phases 1-7):** \~10 weeks
 
 ## Gateway API
 
@@ -137,10 +143,14 @@ One instance = one organization. Deploy with Docker Compose for development or K
 
 ## Related Repositories
 
-- **[pi-mono](https://github.com/badlogic/pi-mono)** -- Agent SDK. Published as npm packages (`pi-ai`, `pi-agent-core`, `pi-coding-agent`, etc.). OpenZosma depends on these packages.
-- **[NVIDIA NemoClaw](https://github.com/NVIDIA/NemoClaw)** -- Sandbox runtime. Runs agents inside OpenShell sandboxes with Landlock + seccomp + network namespace isolation, deny-by-default network policies, and inference routing.
-- **[NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell)** -- Underlying sandbox infrastructure. K3s-based isolation with declarative YAML policies.
-- **[Google A2A](https://github.com/google/A2A)** -- Agent-to-Agent protocol. JSON-RPC 2.0 over HTTPS with SSE streaming and gRPC support.
+* **[pi-mono](https://github.com/badlogic/pi-mono)** -- Agent SDK. Published as npm packages (`pi-ai`, `pi-agent-core`, `pi-coding-agent`, etc.). OpenZosma depends on these packages.
+
+* **[NVIDIA NemoClaw](https://github.com/NVIDIA/NemoClaw)** -- Sandbox runtime. Runs agents inside OpenShell sandboxes with Landlock + seccomp + network namespace isolation, deny-by-default network policies, and inference routing.
+
+* **[NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell)** -- Underlying sandbox infrastructure. K3s-based isolation with declarative YAML policies.
+
+* **[Google A2A](https://github.com/google/A2A)** -- Agent-to-Agent protocol. JSON-RPC 2.0 over HTTPS with SSE streaming and gRPC support.
+
 ```
 openzosma/
   apps/

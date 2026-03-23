@@ -30,3 +30,6 @@ pgdata/
 
 # Agent session workspaces
 workspace/
+
+# Knowledge base
+.knowledge-base

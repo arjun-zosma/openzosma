@@ -2,4 +2,6 @@ export const QUERY_KEYS = {
 	MODELS: "models",
 	CONVERSATIONS: "conversations",
 	CONVERSATION: "conversation",
+	KB_TREE: "kb-tree",
+	KB_FILE: "kb-file",
 }

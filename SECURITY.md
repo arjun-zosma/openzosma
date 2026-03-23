@@ -2,9 +2,9 @@
 
 ## Supported Versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| latest  | Yes                |
+| Version | Supported |
+| ------- | --------- |
+| latest  | Yes       |
 
 We only provide security fixes for the latest release.
 
@@ -13,22 +13,27 @@ We only provide security fixes for the latest release.
 If you discover a security vulnerability, please report it responsibly.
 **Do not open a public GitHub issue.**
 
-Email **security@zosma.ai** with:
+Email **<security@zosma.ai>** with:
 
-- A description of the vulnerability
-- Steps to reproduce
-- Any relevant logs or screenshots
-- Your suggested severity (critical, high, medium, low)
+* A description of the vulnerability
+
+* Steps to reproduce
+
+* Any relevant logs or screenshots
+
+* Your suggested severity (critical, high, medium, low)
 
 We will acknowledge receipt within 48 hours and aim to provide an initial
 assessment within 5 business days.
 
 ## Disclosure Policy
 
-- We follow coordinated disclosure. We ask that you give us a reasonable
+* We follow coordinated disclosure. We ask that you give us a reasonable
   window (typically 90 days) to address the issue before public disclosure.
-- Once a fix is released, we will publish a security advisory on GitHub.
-- Credit will be given to reporters unless they prefer to remain anonymous.
+
+* Once a fix is released, we will publish a security advisory on GitHub.
+
+* Credit will be given to reporters unless they prefer to remain anonymous.
 
 ## Scope
 
