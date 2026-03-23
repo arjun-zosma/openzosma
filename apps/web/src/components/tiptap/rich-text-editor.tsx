@@ -77,6 +77,7 @@ const RichTextEditorDemo = ({ className, initialContent, onChange }: RichTextEdi
 		immediatelyRender: false,
 		extensions: extensions as Extension[],
 		content: initialContent ?? "",
+		contentType: "markdown",
 		editorProps: {
 			attributes: {
 				class: "max-w-full focus:outline-none",
@@ -90,14 +91,9 @@ const RichTextEditorDemo = ({ className, initialContent, onChange }: RichTextEdi
 	if (!editor) return null
 
 	return (
-		<div
-			className={cn(
-				"relative max-h-[calc(100dvh-6rem)]  w-full overflow-hidden overflow-y-scroll border bg-card pb-[60px] sm:pb-0",
-				className,
-			)}
-		>
+		<div className={cn("relative h-full w-full overflow-hidden border bg-card pb-[60px] sm:pb-0", className)}>
 			<TipTapFloatingMenu editor={editor} />
-			<EditorContent editor={editor} className=" min-h-[600px] w-full min-w-full cursor-text sm:p-6" />
+			<EditorContent editor={editor} className="h-full w-full min-w-full cursor-text sm:p-6" />
 		</div>
 	)
 }

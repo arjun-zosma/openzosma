@@ -23,7 +23,7 @@ const settingsnav = [
 		label: "Knowledge Base",
 		href: "/knowledge-base",
 		icon: IconDatabase,
-	}
+	},
 ]
 
 const SettingsLayout = ({ children }: { children: React.ReactNode }) => {
