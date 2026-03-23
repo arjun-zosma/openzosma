@@ -33,7 +33,3 @@ workspace/
 
 # Knowledge base
 .knowledge-base
-
-skills-lock.json
-.agents/
-.claude/
