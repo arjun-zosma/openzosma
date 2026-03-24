@@ -15,6 +15,7 @@ import {
 	PromptInputTools,
 } from "@/src/components/ai-elements/prompt-input"
 import useCreateConversation from "@/src/hooks/chat/use-create-conversation"
+import { setPendingMessage } from "@/src/lib/pending-message"
 import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { useRef } from "react"
@@ -53,6 +54,7 @@ const ChatPage = () => {
 				agentid: "dbchatagent",
 				agentname: "Open Zosma Agent",
 			})
+			setPendingMessage(message.text)
 			router.push(`/chat/${conversation.id}`)
 		} catch {
 			toast.error("Failed to start conversation")
