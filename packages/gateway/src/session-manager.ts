@@ -6,7 +6,9 @@ import type { AgentProvider, AgentSession } from "@openzosma/agents"
 import { PiAgentProvider } from "@openzosma/agents"
 import type { Pool } from "@openzosma/db"
 import { agentConfigQueries } from "@openzosma/db"
-import type { GatewayEvent, Session, SessionMessage } from "./types.js"
+import { ArtifactManager } from "./artifact-manager.js"
+import { createSnapshot, detectChanges } from "./file-scanner.js"
+import type { FileArtifact, GatewayEvent, Session, SessionMessage } from "./types.js"
 
 /**
  * Per-session state holding the agent session and gateway-level metadata.
@@ -14,6 +16,8 @@ import type { GatewayEvent, Session, SessionMessage } from "./types.js"
 interface SessionState {
 	agentSession: AgentSession
 	session: Session
+	/** Absolute path to the session's workspace directory. */
+	workspaceDir: string
 }
 
 export class SessionManager {
@@ -21,10 +25,13 @@ export class SessionManager {
 	private emitters = new Map<string, EventEmitter>()
 	private provider: AgentProvider
 	private pool: Pool | undefined
+	readonly artifactManager: ArtifactManager
 
 	constructor(provider?: AgentProvider, pool?: Pool) {
 		this.provider = provider ?? new PiAgentProvider()
 		this.pool = pool
+		const workspaceRoot = resolve(process.env.OPENZOSMA_WORKSPACE ?? join(process.cwd(), "workspace"))
+		this.artifactManager = new ArtifactManager(workspaceRoot)
 	}
 
 	private getEmitter(sessionId: string): EventEmitter {
@@ -98,7 +105,7 @@ export class SessionManager {
 			...agentConfig,
 		})
 
-		this.sessions.set(session.id, { agentSession, session })
+		this.sessions.set(session.id, { agentSession, session, workspaceDir: sessionDir })
 		return session
 	}
 
@@ -108,6 +115,7 @@ export class SessionManager {
 
 	deleteSession(id: string): boolean {
 		this.emitters.delete(id)
+		this.artifactManager.deleteArtifacts(id)
 		return this.sessions.delete(id)
 	}
 
@@ -153,7 +161,9 @@ export class SessionManager {
 	 * Send a user message and stream back gateway events.
 	 *
 	 * Delegates to the configured AgentProvider's session, mapping
-	 * AgentStreamEvents to GatewayEvents.
+	 * AgentStreamEvents to GatewayEvents. After each tool call ends,
+	 * the workspace is scanned for new output files which are promoted
+	 * to the artifacts directory and emitted as `file_output` events.
 	 */
 	async *sendMessage(sessionId: string, content: string, signal?: AbortSignal): AsyncGenerator<GatewayEvent> {
 		// Auto-create session on first message if it doesn't exist yet.
@@ -167,7 +177,7 @@ export class SessionManager {
 			yield { type: "error", error: `Session ${sessionId} could not be initialized` }
 			return
 		}
-		const { agentSession, session } = state
+		const { agentSession, session, workspaceDir } = state
 
 		// Store user message
 		const userMsg: SessionMessage = {
@@ -182,6 +192,9 @@ export class SessionManager {
 		let lastMessageId: string | undefined
 		const emitter = this.getEmitter(sessionId)
 
+		// Take initial workspace snapshot for artifact detection
+		let snapshot = createSnapshot(workspaceDir)
+
 		for await (const event of agentSession.sendMessage(content, signal)) {
 			const gatewayEvent: GatewayEvent = event as GatewayEvent
 
@@ -194,6 +207,31 @@ export class SessionManager {
 
 			emitter.emit("event", gatewayEvent)
 			yield gatewayEvent
+
+			// After a tool call ends, scan for new output files
+			if (event.type === "tool_call_end") {
+				const artifacts = await this.scanAndPromoteArtifacts(sessionId, workspaceDir, snapshot)
+				if (artifacts) {
+					snapshot = artifacts.newSnapshot
+					const fileEvent: GatewayEvent = {
+						type: "file_output",
+						artifacts: artifacts.promoted,
+					}
+					emitter.emit("event", fileEvent)
+					yield fileEvent
+				}
+			}
+		}
+
+		// Final scan after the turn completes to catch any stragglers
+		const finalArtifacts = await this.scanAndPromoteArtifacts(sessionId, workspaceDir, snapshot)
+		if (finalArtifacts) {
+			const fileEvent: GatewayEvent = {
+				type: "file_output",
+				artifacts: finalArtifacts.promoted,
+			}
+			emitter.emit("event", fileEvent)
+			yield fileEvent
 		}
 
 		// Store assistant message for session history
@@ -205,6 +243,34 @@ export class SessionManager {
 				createdAt: new Date().toISOString(),
 			}
 			session.messages.push(assistantMsg)
+		}
+	}
+
+	/**
+	 * Scans the workspace for changed files and promotes any new output
+	 * files to the artifacts directory.
+	 *
+	 * Returns null if no new artifacts were found.
+	 */
+	private async scanAndPromoteArtifacts(
+		sessionId: string,
+		workspaceDir: string,
+		previousSnapshot: Map<string, { relativePath: string; mtimeMs: number; sizebytes: number }>,
+	): Promise<{ newSnapshot: typeof previousSnapshot; promoted: FileArtifact[] } | null> {
+		const { newSnapshot, changedFiles } = detectChanges(workspaceDir, previousSnapshot)
+
+		if (changedFiles.length === 0) return null
+
+		const promoted = await this.artifactManager.promoteFiles(sessionId, changedFiles)
+		if (promoted.length === 0) return null
+
+		return {
+			newSnapshot,
+			promoted: promoted.map((a) => ({
+				filename: a.filename,
+				mediatype: a.mediatype,
+				sizebytes: a.sizebytes,
+			})),
 		}
 	}
 }

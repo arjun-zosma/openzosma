@@ -13,8 +13,20 @@ export type GatewayEventType =
 	| "tool_call_end"
 	// Thinking / reasoning
 	| "thinking_update"
+	// File output
+	| "file_output"
 	// Error
 	| "error"
+
+/** Metadata for a single artifact file produced by the agent. */
+export interface FileArtifact {
+	/** Filename in the artifacts directory. */
+	filename: string
+	/** MIME type (e.g. "text/html", "image/png"). */
+	mediatype: string
+	/** File size in bytes. */
+	sizebytes: number
+}
 
 /** A single event in the agent response stream. */
 export interface GatewayEvent {
@@ -35,6 +47,8 @@ export interface GatewayEvent {
 	toolResult?: string
 	/** Whether the tool execution errored (for tool_call_end). */
 	isToolError?: boolean
+	/** Artifacts detected after a tool call (for file_output events). */
+	artifacts?: FileArtifact[]
 }
 
 /** Inbound WebSocket message from client. */

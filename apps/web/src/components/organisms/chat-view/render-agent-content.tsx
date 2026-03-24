@@ -1,8 +1,14 @@
 import { MessageResponse } from "@/src/components/ai-elements/message"
+import { ArtifactCardList } from "./artifact-card"
 import ToolActivityPill from "./tool-calls"
-import type { ChatMessage as ChatMessageType, MessageSegment, StreamToolCall } from "./types"
+import type { ChatMessage as ChatMessageType, FileArtifact, MessageSegment, StreamToolCall } from "./types"
 
-const RenderAgentContent = ({ message }: { message: ChatMessageType }) => {
+type RenderAgentContentProps = {
+	message: ChatMessageType
+	onPreviewArtifact?: (artifact: FileArtifact) => void
+}
+
+const RenderAgentContent = ({ message, onPreviewArtifact }: RenderAgentContentProps) => {
 	const segments = message.metadata?.segments as MessageSegment[] | undefined
 	const toolcalls = message.metadata?.toolcalls as StreamToolCall[] | undefined
 	const toolmap = new Map((toolcalls ?? []).map((t) => [t.toolcallid, t]))
@@ -13,6 +19,9 @@ const RenderAgentContent = ({ message }: { message: ChatMessageType }) => {
 				{segments.map((seg, i) => {
 					if (seg.type === "text") {
 						return <MessageResponse key={i}>{seg.content}</MessageResponse>
+					}
+					if (seg.type === "files") {
+						return <ArtifactCardList key={`files-${i}`} artifacts={seg.artifacts} onPreview={onPreviewArtifact} />
 					}
 					const tool = toolmap.get(seg.toolcallid)
 					if (!tool) return null

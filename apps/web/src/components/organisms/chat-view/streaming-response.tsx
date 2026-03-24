@@ -4,8 +4,9 @@ import { MessageResponse } from "@/src/components/ai-elements/message"
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/src/components/ai-elements/reasoning"
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar"
 import { IconRobot } from "@tabler/icons-react"
+import { ArtifactCardList } from "./artifact-card"
 import ToolActivityPill from "./tool-calls"
-import type { MessageSegment, StreamToolCall } from "./types"
+import type { FileArtifact, MessageSegment, StreamToolCall } from "./types"
 
 type StreamingResponseProps = {
 	content: string
@@ -13,6 +14,7 @@ type StreamingResponseProps = {
 	segments: MessageSegment[]
 	reasoning: string
 	isstreaming: boolean
+	onPreviewArtifact?: (artifact: FileArtifact) => void
 }
 
 const TypingIndicator = () => {
@@ -27,7 +29,14 @@ const TypingIndicator = () => {
 	)
 }
 
-const StreamingResponse = ({ content, toolcalls, segments, reasoning, isstreaming }: StreamingResponseProps) => {
+const StreamingResponse = ({
+	content,
+	toolcalls,
+	segments,
+	reasoning,
+	isstreaming,
+	onPreviewArtifact,
+}: StreamingResponseProps) => {
 	const toolmap = new Map(toolcalls.map((t) => [t.toolcallid, t]))
 	const hasactivity = content || toolcalls.length > 0 || reasoning
 	const hassegments = segments.length > 0
@@ -55,6 +64,9 @@ const StreamingResponse = ({ content, toolcalls, segments, reasoning, isstreamin
 					segments.map((seg, i) => {
 						if (seg.type === "text") {
 							return <MessageResponse key={i}>{seg.content}</MessageResponse>
+						}
+						if (seg.type === "files") {
+							return <ArtifactCardList key={`files-${i}`} artifacts={seg.artifacts} onPreview={onPreviewArtifact} />
 						}
 						const tool = toolmap.get(seg.toolcallid)
 						if (!tool) return null
