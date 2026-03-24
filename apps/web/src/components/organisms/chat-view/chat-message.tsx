@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback } from "@/src/components/ui/avatar"
 import { IconRobot, IconUser } from "@tabler/icons-react"
 import { DownloadIcon, FileIcon } from "lucide-react"
 import RenderAgentContent from "./render-agent-content"
-import type { ChatAttachment, ChatMessage as ChatMessageType } from "./types"
+import type { ChatAttachment, ChatMessage as ChatMessageType, FileArtifact } from "./types"
 
 const formatsizebytes = (bytes: number | null): string => {
 	if (!bytes) return ""
@@ -18,11 +18,13 @@ type AttachmentListProps = {
 }
 
 const AttachmentList = ({ attachments }: AttachmentListProps) => {
-	if (attachments.length === 0) return null
+	// Filter out artifact-type attachments (handled by inline cards)
+	const nonartifact = attachments.filter((att) => att.type !== "artifact")
+	if (nonartifact.length === 0) return null
 
 	return (
 		<div className="flex flex-wrap gap-2 mt-2">
-			{attachments.map((att) => {
+			{nonartifact.map((att) => {
 				if (att.mediatype?.startsWith("image/") && att.url) {
 					return (
 						<div key={att.id} className="relative rounded-lg overflow-hidden border max-w-xs">
@@ -55,9 +57,10 @@ const AttachmentList = ({ attachments }: AttachmentListProps) => {
 type ChatMessageProps = {
 	message: ChatMessageType
 	sendername: string
+	onPreviewArtifact?: (artifact: FileArtifact) => void
 }
 
-const ChatMessage = ({ message, sendername }: ChatMessageProps) => {
+const ChatMessage = ({ message, sendername, onPreviewArtifact }: ChatMessageProps) => {
 	const isagent = message.sendertype === "agent"
 	const timestamp = new Date(message.createdat).toLocaleTimeString([], {
 		hour: "2-digit",
@@ -77,7 +80,7 @@ const ChatMessage = ({ message, sendername }: ChatMessageProps) => {
 					<span className="text-[10px] text-muted-foreground">{timestamp}</span>
 				</div>
 				{isagent ? (
-					<RenderAgentContent message={message} />
+					<RenderAgentContent message={message} onPreviewArtifact={onPreviewArtifact} />
 				) : (
 					<p className="text-sm whitespace-pre-wrap">{message.content}</p>
 				)}

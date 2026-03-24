@@ -10,7 +10,7 @@ import {
 
 export type BuiltInToolName = "read" | "bash" | "edit" | "write" | "grep" | "find" | "ls"
 
-export function createDefaultTools(workspaceDir: string, toolsEnabled?: string[]) {
+export const createDefaultTools = (workspaceDir: string, toolsEnabled?: string[]) => {
 	const allTools = [
 		{ name: "read", tool: createReadTool(workspaceDir) },
 		{ name: "bash", tool: createBashTool(workspaceDir) },

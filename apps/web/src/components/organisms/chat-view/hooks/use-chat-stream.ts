@@ -4,7 +4,15 @@ import useSaveMessage from "@/src/hooks/chat/use-save-message"
 import { useSession } from "@/src/lib/auth-client"
 import { GATEWAY_URL } from "@/src/lib/constants"
 import { QUERY_KEYS } from "@/src/utils/query-keys"
-import type { AgentStreamEvent } from "@openzosma/agents/types"
+import type { AgentStreamEvent, AgentStreamEventType } from "@openzosma/agents/types"
+
+/** Gateway may emit additional event types beyond what the agent SDK defines. */
+type GatewayEventType = AgentStreamEventType | "file_output"
+
+interface GatewayStreamEvent extends Omit<AgentStreamEvent, "type"> {
+	type: GatewayEventType
+	artifacts?: FileArtifact[]
+}
 import { useQueryClient } from "@tanstack/react-query"
 import type { FileUIPart } from "ai"
 import { useCallback, useState } from "react"
@@ -14,6 +22,7 @@ import type {
 	ChatMessage,
 	ChatParticipant,
 	ConversationData,
+	FileArtifact,
 	MessageSegment,
 	StreamToolCall,
 } from "../types"
@@ -29,6 +38,7 @@ type UseChatStreamReturn = {
 	streamingtoolcalls: StreamToolCall[]
 	streamingsegments: MessageSegment[]
 	streamingreasoning: string
+	streamingartifacts: FileArtifact[]
 	handlesubmit: (message: SubmitMessage) => Promise<void>
 }
 
@@ -46,6 +56,7 @@ const useChatStream = (
 	const [streamingtoolcalls, setStreamingtoolcalls] = useState<StreamToolCall[]>([])
 	const [streamingsegments, setStreamingsegments] = useState<MessageSegment[]>([])
 	const [streamingreasoning, setStreamingreasoning] = useState("")
+	const [streamingartifacts, setStreamingartifacts] = useState<FileArtifact[]>([])
 
 	const handlesubmit = useCallback(
 		async (message: SubmitMessage) => {
@@ -122,6 +133,7 @@ const useChatStream = (
 			setStreamingtoolcalls([])
 			setStreamingsegments([])
 			setStreamingreasoning("")
+			setStreamingartifacts([])
 
 			try {
 				const wsurl = `${GATEWAY_URL.replace(/^http/, "ws")}/ws`
@@ -130,6 +142,7 @@ const useChatStream = (
 				let fullreasoning = ""
 				const toolcalls: Record<string, StreamToolCall> = {}
 				const segments: MessageSegment[] = []
+				const allartifacts: FileArtifact[] = []
 
 				const updatetoolcalls = () => {
 					setStreamingtoolcalls(Object.values(toolcalls))
@@ -152,7 +165,7 @@ const useChatStream = (
 					}
 
 					ws.onmessage = (event) => {
-						let evt: AgentStreamEvent
+						let evt: GatewayStreamEvent
 						try {
 							evt = JSON.parse(event.data)
 						} catch {
@@ -231,6 +244,16 @@ const useChatStream = (
 								}
 								break
 							}
+							case "file_output": {
+								if (evt.artifacts && evt.artifacts.length > 0) {
+									allartifacts.push(...evt.artifacts)
+									setStreamingartifacts([...allartifacts])
+									// Add a files segment to the chat stream
+									segments.push({ type: "files", artifacts: [...evt.artifacts] })
+									updatesegments()
+								}
+								break
+							}
 							case "thinking_update": {
 								if (evt.text) {
 									fullreasoning += evt.text
@@ -260,6 +283,15 @@ const useChatStream = (
 					}
 				})
 
+				// Build artifact attachments for DB persistence
+				const artifactattachments = allartifacts.map((a) => ({
+					type: "artifact" as const,
+					filename: a.filename,
+					mediatype: a.mediatype,
+					url: `/api/conversations/${conversationid}/artifacts/${encodeURIComponent(a.filename)}`,
+					sizebytes: a.sizebytes,
+				}))
+
 				try {
 					await saveMessage({
 						conversationid,
@@ -273,6 +305,7 @@ const useChatStream = (
 									: segments.length > 0
 										? { segments }
 										: {},
+							attachments: artifactattachments.length > 0 ? artifactattachments : undefined,
 						},
 					})
 				} catch (err) {
@@ -293,6 +326,7 @@ const useChatStream = (
 			setStreamingtoolcalls([])
 			setStreamingsegments([])
 			setStreamingreasoning("")
+			setStreamingartifacts([])
 		},
 		[conversationid, conversation, participants, queryClient, saveMessage, session],
 	)
@@ -303,6 +337,7 @@ const useChatStream = (
 		streamingtoolcalls,
 		streamingsegments,
 		streamingreasoning,
+		streamingartifacts,
 		handlesubmit,
 	}
 }

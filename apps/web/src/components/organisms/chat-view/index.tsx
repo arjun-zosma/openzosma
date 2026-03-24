@@ -5,20 +5,48 @@ import { consumePendingMessage } from "@/src/lib/pending-message"
 import { IconSparkles } from "@tabler/icons-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useParams } from "next/navigation"
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import ArtifactPreview from "./artifact-preview"
 import ChatHeader from "./chat-header"
 import ChatMessage from "./chat-message"
+import FilesPanel from "./files-panel"
 import useChatStream from "./hooks/use-chat-stream"
 import useConversation from "./hooks/use-conversation"
+import useSessionArtifacts from "./hooks/use-session-artifacts"
 import PromptInput from "./prompt-input"
 import StreamingResponse from "./streaming-response"
+import type { FileArtifact } from "./types"
 
 const ChatView = () => {
 	const { conversationid } = useParams<{ conversationid: string }>()
 	const textarearef = useRef<HTMLTextAreaElement>(null)
 	const { conversation, participants, messages, loading } = useConversation(conversationid)
-	const { streaming, streamingcontent, streamingtoolcalls, streamingsegments, streamingreasoning, handlesubmit } =
-		useChatStream(conversationid, conversation, participants)
+	const {
+		streaming,
+		streamingcontent,
+		streamingtoolcalls,
+		streamingsegments,
+		streamingreasoning,
+		streamingartifacts,
+		handlesubmit,
+	} = useChatStream(conversationid, conversation, participants)
+
+	const { artifacts, hasfiles } = useSessionArtifacts(conversationid, streamingartifacts)
+
+	const [filespanelopen, setFilespanelopen] = useState(false)
+	const [previewartifact, setPreviewartifact] = useState<FileArtifact | null>(null)
+
+	const handleToggleFiles = useCallback(() => {
+		setFilespanelopen((prev) => !prev)
+	}, [])
+
+	const handlePreviewArtifact = useCallback((artifact: FileArtifact) => {
+		setPreviewartifact(artifact)
+	}, [])
+
+	const handleClosePreview = useCallback(() => {
+		setPreviewartifact(null)
+	}, [])
 
 	useEffect(() => {
 		if (loading) return
@@ -75,7 +103,7 @@ const ChatView = () => {
 				)}
 			</AnimatePresence>
 
-			{/* Conversation layout: messages + docked input */}
+			{/* Conversation layout: messages + docked input + optional files panel */}
 			<AnimatePresence>
 				{hasmessages && (
 					<motion.div
@@ -84,52 +112,73 @@ const ChatView = () => {
 						animate={{ opacity: 1, transition: { duration: 0.3 } }}
 						className="flex flex-col h-full"
 					>
-						<ChatHeader conversation={conversation} participants={participants} />
+						<ChatHeader
+							conversation={conversation}
+							participants={participants}
+							filescount={artifacts.length}
+							onToggleFiles={handleToggleFiles}
+							filespanelopen={filespanelopen}
+						/>
 
-						<Conversation className="flex-1 min-h-0">
-							<ConversationContent className="max-w-3xl mx-auto w-full py-6">
-								{messages.map((msg) => (
-									<ChatMessage
-										key={msg.id}
-										message={msg}
-										sendername={getparticipantname(msg.senderid, msg.sendertype)}
-									/>
-								))}
+						<div className="flex flex-1 min-h-0">
+							{/* Main chat area */}
+							<div className="flex flex-col flex-1 min-w-0">
+								<Conversation className="flex-1 min-h-0">
+									<ConversationContent className="max-w-3xl mx-auto w-full py-6">
+										{messages.map((msg) => (
+											<ChatMessage
+												key={msg.id}
+												message={msg}
+												sendername={getparticipantname(msg.senderid, msg.sendertype)}
+												onPreviewArtifact={handlePreviewArtifact}
+											/>
+										))}
 
-								{streaming && (
-									<StreamingResponse
-										content={streamingcontent}
-										toolcalls={streamingtoolcalls}
-										segments={streamingsegments}
-										reasoning={streamingreasoning}
-										isstreaming={streaming}
-									/>
-								)}
-							</ConversationContent>
-							<ConversationScrollButton />
-						</Conversation>
+										{streaming && (
+											<StreamingResponse
+												content={streamingcontent}
+												toolcalls={streamingtoolcalls}
+												segments={streamingsegments}
+												reasoning={streamingreasoning}
+												isstreaming={streaming}
+												onPreviewArtifact={handlePreviewArtifact}
+											/>
+										)}
+									</ConversationContent>
+									<ConversationScrollButton />
+								</Conversation>
 
-						<motion.div
-							initial={{ opacity: 0, y: 20 }}
-							animate={{
-								opacity: 1,
-								y: 0,
-								transition: { duration: 0.3, delay: 0.1 },
-							}}
-							className="shrink-0 border-t"
-						>
-							<div className="max-w-3xl mx-auto w-full px-4 py-3">
-								<PromptInput
-									handlesubmit={handlesubmit}
-									hasmessages={hasmessages}
-									textarearef={textarearef as React.RefObject<HTMLTextAreaElement>}
-									streaming={streaming}
-								/>
+								<motion.div
+									initial={{ opacity: 0, y: 20 }}
+									animate={{
+										opacity: 1,
+										y: 0,
+										transition: { duration: 0.3, delay: 0.1 },
+									}}
+									className="shrink-0 border-t"
+								>
+									<div className="max-w-3xl mx-auto w-full px-4 py-3">
+										<PromptInput
+											handlesubmit={handlesubmit}
+											hasmessages={hasmessages}
+											textarearef={textarearef as React.RefObject<HTMLTextAreaElement>}
+											streaming={streaming}
+										/>
+									</div>
+								</motion.div>
 							</div>
-						</motion.div>
+
+							{/* Files panel (conditionally rendered) */}
+							{filespanelopen && (
+								<FilesPanel artifacts={artifacts} onClose={handleToggleFiles} onPreview={handlePreviewArtifact} />
+							)}
+						</div>
 					</motion.div>
 				)}
 			</AnimatePresence>
+
+			{/* Artifact preview modal */}
+			<ArtifactPreview artifact={previewartifact} onClose={handleClosePreview} />
 		</div>
 	)
 }

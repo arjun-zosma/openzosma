@@ -27,6 +27,50 @@ If the user did not give you a concrete task, read README.md and ARCHITECTURE.md
 - Never remove or downgrade code to fix type errors from outdated dependencies; upgrade the dependency instead.
 - Always ask before removing functionality or code that appears intentional.
 
+## TypeScript Coding Standards
+
+- **Arrow functions everywhere.** All functions (exported and internal) must use arrow function syntax:
+  ```ts
+  export const buildLocalModel = (): Model<"openai-completions"> | undefined => {
+    // ...
+  }
+  
+  const helperFunction = (param: string): boolean => {
+    return true
+  }
+  ```
+
+- **Use `interface` for object contracts.** When defining the shape of objects (data structures, configs), use `interface`:
+  ```ts
+  export interface ResolveModelOpts {
+    provider?: string
+    model?: string
+    baseUrl?: string
+  }
+  ```
+
+- **Use `type` for unions, literals, and complex types.** Use `type` for type aliases that represent unions, literal types, or compositions:
+  ```ts
+  export type BuiltInToolName = "read" | "bash" | "edit" | "write" | "grep" | "find" | "ls"
+  
+  export type Model<T extends Api> = { /* ... */ }
+  ```
+
+- **JSDoc for exported functions.** Document the purpose, parameters, and return value:
+  ```ts
+  /**
+   * Resolve the model to use. Priority:
+   * 1. Local model via OPENZOSMA_LOCAL_MODEL_URL env var
+   * 2. Explicit overrides passed via opts
+   * 3. Auto-detect from available API keys
+   */
+  export const resolveModel = (opts?: ResolveModelOpts): { model: Model<Api>; apiKey: string } => {
+    // ...
+  }
+  ```
+
+- **Naming conventions:** camelCase for variables/functions, PascalCase for types/interfaces/classes.
+
 ## Architecture Rules
 
 - **Self-hosted.** No `tenant_id` columns. No tenant resolution. One instance = one organization.

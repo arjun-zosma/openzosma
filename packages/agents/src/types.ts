@@ -67,6 +67,12 @@ export interface AgentSessionOpts {
 	 */
 	model?: string
 	/**
+	 * Base URL for an OpenAI-compatible endpoint (e.g. "http://localhost:11434/v1").
+	 * When set together with `model`, creates a custom model targeting this URL
+	 * instead of looking up the model in the pi-ai registry.
+	 */
+	baseUrl?: string
+	/**
 	 * System prompt override. When omitted, the built-in default is used.
 	 */
 	systemPrompt?: string

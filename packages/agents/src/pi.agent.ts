@@ -1,12 +1,34 @@
 import { randomUUID } from "node:crypto"
 import type { AgentSession as PiSdkSession } from "@mariozechner/pi-coding-agent"
-import { DefaultResourceLoader, SessionManager, createAgentSession } from "@mariozechner/pi-coding-agent"
+import {
+	AuthStorage,
+	DefaultResourceLoader,
+	ModelRegistry,
+	SessionManager,
+	createAgentSession,
+} from "@mariozechner/pi-coding-agent"
 import { bootstrapMemory } from "@openzosma/memory"
 import { DEFAULT_SYSTEM_PROMPT } from "./pi/config.js"
 import { bootstrapPiExtensions } from "./pi/extensions/index.js"
 import { resolveModel } from "./pi/model.js"
 import { createDefaultTools } from "./pi/tools.js"
 import type { AgentMessage, AgentProvider, AgentSession, AgentSessionOpts, AgentStreamEvent } from "./types.js"
+
+/**
+ * Build a ModelRegistry that knows about a custom provider and its API key.
+ * This is needed because pi-coding-agent's AgentSession validates the API key
+ * via ModelRegistry.getApiKey() before each prompt. Without registration,
+ * custom providers (like "local") fail with "No API key found".
+ */
+function buildModelRegistry(providerName: string, apiKey: string, baseUrl: string): ModelRegistry {
+	const authStorage = AuthStorage.inMemory()
+	const registry = new ModelRegistry(authStorage)
+	registry.registerProvider(providerName, {
+		apiKey,
+		baseUrl,
+	})
+	return registry
+}
 
 class PiAgentSession implements AgentSession {
 	private sessionPromise: Promise<PiSdkSession>
@@ -17,8 +39,12 @@ class PiAgentSession implements AgentSession {
 			workspaceDir: opts.workspaceDir,
 			memoryDir: opts.memoryDir,
 		})
-		const toolList = createDefaultTools(opts.workspaceDir, opts.toolsEnabled)
-		const { model } = resolveModel()
+		const toolList = [...createDefaultTools(opts.workspaceDir, opts.toolsEnabled)]
+		const { model, apiKey } = resolveModel({
+			provider: opts.provider,
+			model: opts.model,
+			baseUrl: opts.baseUrl,
+		})
 		const { extensionPaths } = bootstrapPiExtensions()
 
 		const resourceLoader = new DefaultResourceLoader({
@@ -26,6 +52,13 @@ class PiAgentSession implements AgentSession {
 			additionalExtensionPaths: [...extensionPaths, ...memoryResult.paths],
 			systemPrompt: opts.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
 		})
+
+		// For custom/local providers not in the built-in registry, create a
+		// ModelRegistry with the provider registered so that AgentSession.prompt()
+		// can resolve the API key. For known providers (openai, anthropic, etc.)
+		// the default registry resolves keys from environment variables.
+		const isCustomProvider = model.provider === "local" || model.provider === "custom"
+		const modelRegistry = isCustomProvider ? buildModelRegistry(model.provider, apiKey, model.baseUrl) : undefined
 
 		this.sessionPromise = (async () => {
 			await resourceLoader.reload()
@@ -36,6 +69,7 @@ class PiAgentSession implements AgentSession {
 				tools: toolList,
 				sessionManager: SessionManager.inMemory(),
 				resourceLoader,
+				modelRegistry,
 			})
 			if (extensionsResult.errors.length > 0) {
 				const extensionErrors = extensionsResult.errors.map((e) => `${e.path}: ${e.error}`).join("; ")

@@ -22,7 +22,7 @@ export const StickySearch = () => {
 
 	return (
 		<motion.button
-			className="fixed top-4 right-4 z-50 flex items-center justify-end rounded-lg border bg-background/90 backdrop-blur-sm shadow-md cursor-pointer overflow-hidden h-9"
+			className="fixed bottom-4 right-4 z-50 flex items-center justify-end rounded-lg border bg-background/90 backdrop-blur-sm shadow-md cursor-pointer overflow-hidden h-9"
 			animate={{ width: ishovered ? 200 : 64 }}
 			transition={{ duration: 0.18, ease: "easeOut" }}
 			onMouseEnter={() => setIshovered(true)}

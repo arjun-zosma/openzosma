@@ -8,11 +8,11 @@ import { syncWebSearchConfig } from "./web-search.js"
 
 const PI_GLOBAL_EXTENSIONS_DIR = join(homedir(), ".pi", "agent", "extensions")
 
-function isGloballyInstalled(extensionDirName: string): boolean {
+const isGloballyInstalled = (extensionDirName: string): boolean => {
 	return existsSync(join(PI_GLOBAL_EXTENSIONS_DIR, extensionDirName, "index.ts"))
 }
 
-function resolvePackageFile(pkgName: string, relPath: string): string | null {
+const resolvePackageFile = (pkgName: string, relPath: string): string | null => {
 	const require = createRequire(import.meta.url)
 	try {
 		const packageJsonPath = require.resolve(`${pkgName}/package.json`)
@@ -27,7 +27,7 @@ export interface PiExtensionBootstrapResult {
 	configPaths: string[]
 }
 
-export function bootstrapPiExtensions(): PiExtensionBootstrapResult {
+export const bootstrapPiExtensions = (): PiExtensionBootstrapResult => {
 	const piAvailable = isPiAvailable()
 	const extensionPaths = [
 		isGloballyInstalled("web-access") ? null : resolvePackageFile("pi-web-access", "index.ts"),

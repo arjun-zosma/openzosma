@@ -46,7 +46,7 @@
 			"*.sql",
 			"**/migrations/*.js",
 			"next-env.d.ts",
-			"workspace/"
+			"**/workspace/**"
 		]
 	}
 }

@@ -4,4 +4,5 @@ export const QUERY_KEYS = {
 	CONVERSATION: "conversation",
 	KB_TREE: "kb-tree",
 	KB_FILE: "kb-file",
+	ARTIFACT_CONTENT: "artifact-content",
 }

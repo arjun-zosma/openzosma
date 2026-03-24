@@ -6,11 +6,11 @@ import { fileURLToPath } from "node:url"
 import { SUBAGENTS_CONFIG } from "../config.js"
 import type { SubagentsExtensionConfig } from "../extension-types.js"
 
-export function getSubagentsConfigPath(): string {
+export const getSubagentsConfigPath = (): string => {
 	return join(homedir(), ".pi", "agent", "extensions", "subagent", "config.json")
 }
 
-export function syncSubagentsConfig(config: SubagentsExtensionConfig = SUBAGENTS_CONFIG): string {
+export const syncSubagentsConfig = (config: SubagentsExtensionConfig = SUBAGENTS_CONFIG): string => {
 	const configPath = getSubagentsConfigPath()
 	mkdirSync(dirname(configPath), { recursive: true })
 	const payload = {
@@ -21,13 +21,13 @@ export function syncSubagentsConfig(config: SubagentsExtensionConfig = SUBAGENTS
 	return configPath
 }
 
-export function applySubagentEnv(config: SubagentsExtensionConfig = SUBAGENTS_CONFIG): void {
+export const applySubagentEnv = (config: SubagentsExtensionConfig = SUBAGENTS_CONFIG): void => {
 	if (config.maxDepth !== undefined && !process.env.PI_SUBAGENT_MAX_DEPTH) {
 		process.env.PI_SUBAGENT_MAX_DEPTH = String(config.maxDepth)
 	}
 }
 
-export function isPiAvailable(): boolean {
+export const isPiAvailable = (): boolean => {
 	const result = spawnSync("pi", ["--version"], { encoding: "utf-8" })
 	return result.status === 0 && /\d+\.\d+/.test(result.stdout ?? "")
 }
@@ -35,7 +35,7 @@ export function isPiAvailable(): boolean {
 const SUBAGENTS_SOURCE_DIR = join(dirname(fileURLToPath(import.meta.url)), "../subagents")
 const SUBAGENTS_TARGET_DIR = join(homedir(), ".pi", "agent", "agents")
 
-export function syncSubagentDefinitions(): string[] {
+export const syncSubagentDefinitions = (): string[] => {
 	let entries: Dirent[]
 	try {
 		entries = readdirSync(SUBAGENTS_SOURCE_DIR, { withFileTypes: true })

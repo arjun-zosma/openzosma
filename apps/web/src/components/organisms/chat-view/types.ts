@@ -43,4 +43,13 @@ export type StreamToolCall = {
 	iserror?: boolean
 }
 
-export type MessageSegment = { type: "text"; content: string } | { type: "tool"; toolcallid: string }
+export type FileArtifact = {
+	filename: string
+	mediatype: string
+	sizebytes: number
+}
+
+export type MessageSegment =
+	| { type: "text"; content: string }
+	| { type: "tool"; toolcallid: string }
+	| { type: "files"; artifacts: FileArtifact[] }
