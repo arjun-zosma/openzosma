@@ -4,6 +4,54 @@
 **Priority:** P0
 **Depends on:** Phase 3 (gateway), Phase 1 (multi-instance pi-agent)
 
+## Implementation Status
+
+> **Phase 4a + 4b are complete.** Phase 4c (documentation, integration tests) is in progress.
+
+### What was built vs. what was planned
+
+The core infrastructure is implemented but with significant architectural deviations from the original plan below. The original plan describes a gRPC-based architecture with a sandbox pool model. The actual implementation uses **HTTP/SSE** with **per-user persistent sandboxes**.
+
+| Planned | Actual |
+|---|---|
+| gRPC between gateway and orchestrator | Orchestrator is an **in-process library** imported by gateway |
+| gRPC bidirectional streaming to sandboxes | **HTTP/SSE** via `SandboxHttpClient` to sandbox-server |
+| Pre-warmed sandbox pool (`SANDBOX_POOL_SIZE`) | **Per-user persistent sandboxes** (one per user, created on demand) |
+| Orchestrator as a separate gRPC server on port 50051 | No separate process; gateway imports `@openzosma/orchestrator` |
+| RabbitMQ event publishing | **Not implemented** (deferred) |
+| Valkey state store | **Not implemented** (deferred) |
+| `pi-coding-agent --grpc --port 50052` inside sandbox | `sandbox-server` (Hono HTTP on port 8080) wraps pi-agent |
+
+### Implemented components
+
+| Component | Location | Description |
+|---|---|---|
+| OpenShell CLI wrapper | `packages/sandbox/` | TypeScript client wrapping `openshell` binary |
+| Sandbox HTTP server | `packages/sandbox-server/` | Hono server running inside sandbox containers |
+| Sandbox Docker image | `infra/openshell/Dockerfile` | Multi-stage build with immutable/writable split |
+| Security policies | `infra/openshell/policies/` | default.yaml + presets (slack, docker, huggingface) |
+| DB migration | `packages/db/migrations/20260324060000-*` | `user_sandboxes` table + CRUD queries |
+| Sandbox manager | `packages/orchestrator/src/sandbox-manager.ts` | Per-user lifecycle (create, suspend, resume, destroy) |
+| HTTP client | `packages/orchestrator/src/sandbox-http-client.ts` | HTTP/SSE communication with sandbox-server |
+| Session manager | `packages/orchestrator/src/session-manager.ts` | Bridges gateway SessionManager to sandbox sessions |
+| Quota enforcement | `packages/orchestrator/src/quota.ts` | Sandbox and session quota checks |
+| Health checks | `packages/orchestrator/src/health.ts` | Background health check loop |
+| Env config | `packages/orchestrator/src/config.ts` | `loadConfigFromEnv()` for env-var-based config |
+| Gateway wiring | `packages/gateway/src/index.ts` | `OPENZOSMA_SANDBOX_MODE` toggle (local/orchestrator) |
+
+### Remaining work
+
+- Integration tests (orchestrator + sandbox lifecycle using Docker)
+- Dashboard sandbox status UI
+- Valkey integration for multi-gateway pub/sub fan-out
+- RabbitMQ event publishing for webhooks and analytics
+
+---
+
+*The rest of this document is the original plan. It is preserved as a reference but does not reflect the actual implementation. See [ARCHITECTURE.md](../ARCHITECTURE.md) for the current system design.*
+
+---
+
 ## Goal
 
 Build the orchestrator that manages session lifecycle and integrates with NVIDIA OpenShell for per-session sandboxing. This is the core of the platform -- it connects the gateway to isolated agent instances via gRPC.

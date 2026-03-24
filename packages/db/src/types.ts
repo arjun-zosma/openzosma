@@ -64,3 +64,19 @@ export interface Setting {
 	value: unknown
 	updatedAt: Date
 }
+
+// -- User Sandboxes --
+
+export type SandboxStatus = "creating" | "provisioning" | "ready" | "suspended" | "error" | "deleting" | "deleted"
+
+export interface UserSandbox {
+	id: string
+	userId: string
+	sandboxName: string
+	status: SandboxStatus
+	policyTemplate: string
+	createdAt: Date
+	lastActiveAt: Date
+	suspendedAt: Date | null
+	metadata: Record<string, unknown>
+}

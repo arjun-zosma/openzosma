@@ -145,6 +145,12 @@ These run first (earlier timestamps):
 | `20260301040000-create-connections` | `connections` table with type CHECK constraint |
 | `20260301050000-create-settings` | `settings` table with seed data |
 
+### Public Schema -- Orchestrator Tables (20260324\*)
+
+| Migration | Description |
+|---|---|
+| `20260324060000-create-user-sandboxes` | `user_sandboxes` table for per-user sandbox lifecycle tracking |
+
 ### Public Schema -- Web App Tables (20260302\*)
 
 These run after gateway tables:
@@ -180,6 +186,7 @@ import {
   usageQueries,
   connectionQueries,
   settingQueries,
+  userSandboxQueries,
 } from "@openzosma/db"
 
 const pool = createPool()
@@ -189,6 +196,9 @@ const configs = await agentConfigQueries.getAll(pool)
 
 // Example: record usage
 await usageQueries.recordUsage(pool, { sessionId: "...", tokens: 100 })
+
+// Example: get a user's sandbox
+const sandbox = await userSandboxQueries.getByUserId(pool, "user-id")
 ```
 
 ### Exported Types
@@ -199,6 +209,8 @@ await usageQueries.recordUsage(pool, { sessionId: "...", tokens: 100 })
 - `Connection` -- External connection record
 - `ConnectionType` -- Union type for connection types
 - `Setting` -- Key-value setting record
+- `UserSandbox` -- Per-user sandbox record (id, user_id, sandbox_name, status, metadata, timestamps)
+- `SandboxStatus` -- Sandbox lifecycle status (`creating` | `ready` | `suspended` | `failed` | `destroyed`)
 - `PoolConfig` -- Configuration for `createPool()`
 
 ## File Structure
@@ -220,6 +232,7 @@ packages/db/
       usage.ts                          # Usage tracking queries
       connections.ts                    # CRUD for connections
       settings.ts                       # CRUD for settings
+      user-sandboxes.ts                 # CRUD for user_sandboxes
   migrations/
     package.json                        # "type": "commonjs" override for db-migrate CJS files
     <timestamp>-<name>.js               # db-migrate JS boilerplate files

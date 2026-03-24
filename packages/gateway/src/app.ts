@@ -2,11 +2,20 @@ import { createHash, randomBytes } from "node:crypto"
 import { buildDefaultAgentCard } from "@openzosma/a2a"
 import type { Pool } from "@openzosma/db"
 import { agentConfigQueries, apiKeyQueries } from "@openzosma/db"
+import type { Context } from "hono"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { streamSSE } from "hono/streaming"
 import { createPerAgentRouter } from "./a2a.js"
 import type { SessionManager } from "./session-manager.js"
+
+/**
+ * Extract userId from request. Currently reads from X-User-Id header.
+ * Will be replaced by Better Auth session middleware when wired in.
+ */
+function getUserId(c: Context): string | undefined {
+	return c.req.header("X-User-Id") ?? undefined
+}
 
 export function createApp(sessionManager: SessionManager, pool?: Pool): Hono {
 	const app = new Hono()
@@ -16,7 +25,7 @@ export function createApp(sessionManager: SessionManager, pool?: Pool): Hono {
 		cors({
 			origin: ["http://localhost:3000"],
 			allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
-			allowHeaders: ["Content-Type", "Authorization"],
+			allowHeaders: ["Content-Type", "Authorization", "X-User-Id"],
 		}),
 	)
 
@@ -49,7 +58,8 @@ export function createApp(sessionManager: SessionManager, pool?: Pool): Hono {
 	// -----------------------------------------------------------------------
 
 	app.post("/api/v1/sessions", async (c) => {
-		const session = await sessionManager.createSession()
+		const userId = getUserId(c)
+		const session = await sessionManager.createSession(undefined, undefined, undefined, userId)
 		return c.json({ id: session.id, createdAt: session.createdAt }, 201)
 	})
 
@@ -84,8 +94,9 @@ export function createApp(sessionManager: SessionManager, pool?: Pool): Hono {
 			return c.json({ error: "content is required" }, 400)
 		}
 
+		const userId = getUserId(c)
 		const events = []
-		for await (const event of sessionManager.sendMessage(c.req.param("id"), body.content)) {
+		for await (const event of sessionManager.sendMessage(c.req.param("id"), body.content, undefined, userId)) {
 			events.push(event)
 		}
 

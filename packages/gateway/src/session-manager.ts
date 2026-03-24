@@ -6,25 +6,46 @@ import type { AgentProvider, AgentSession } from "@openzosma/agents"
 import { PiAgentProvider } from "@openzosma/agents"
 import type { Pool } from "@openzosma/db"
 import { agentConfigQueries } from "@openzosma/db"
+import type { OrchestratorSessionManager } from "@openzosma/orchestrator"
 import type { GatewayEvent, Session, SessionMessage } from "./types.js"
 
 /**
  * Per-session state holding the agent session and gateway-level metadata.
+ * Used only in local (non-orchestrator) mode.
  */
 interface SessionState {
 	agentSession: AgentSession
 	session: Session
 }
 
+/**
+ * Gateway session manager.
+ *
+ * Operates in two modes:
+ *
+ * 1. **Local mode** (default): Runs pi-agent directly in-process. This is the
+ *    pre-Phase-4 behavior and serves as the development fallback.
+ *
+ * 2. **Orchestrator mode**: Delegates session lifecycle and message routing
+ *    to the OrchestratorSessionManager, which proxies to sandbox-server
+ *    instances running inside per-user OpenShell sandboxes.
+ *
+ * The mode is determined by whether an `orchestrator` is passed to the
+ * constructor. When the orchestrator is present, all operations that involve
+ * agent execution are delegated. Session metadata is still tracked locally
+ * for the gateway's own needs (SSE subscriptions, message history).
+ */
 export class SessionManager {
 	private sessions = new Map<string, SessionState>()
 	private emitters = new Map<string, EventEmitter>()
 	private provider: AgentProvider
 	private pool: Pool | undefined
+	private orchestrator: OrchestratorSessionManager | undefined
 
-	constructor(provider?: AgentProvider, pool?: Pool) {
-		this.provider = provider ?? new PiAgentProvider()
-		this.pool = pool
+	constructor(opts?: { provider?: AgentProvider; pool?: Pool; orchestrator?: OrchestratorSessionManager }) {
+		this.provider = opts?.provider ?? new PiAgentProvider()
+		this.pool = opts?.pool
+		this.orchestrator = opts?.orchestrator
 	}
 
 	private getEmitter(sessionId: string): EventEmitter {
@@ -39,18 +60,16 @@ export class SessionManager {
 	/**
 	 * Create a new session.
 	 *
-	 * @param id           Optional session ID — if already exists the existing session is returned.
-	 * @param agentConfigId Optional agent config UUID. When provided without `resolvedConfig`,
-	 *                      the config is fetched from the DB. Pass `resolvedConfig` to skip
-	 *                      that fetch when the caller has already loaded the config (avoids
-	 *                      a redundant DB round-trip).
-	 * @param resolvedConfig Pre-fetched agent config fields. When provided, `agentConfigId`
-	 *                       is still stored on the session for reference but no DB query is made.
+	 * @param id           Optional session ID -- if already exists, the existing session is returned.
+	 * @param agentConfigId Optional agent config UUID.
+	 * @param resolvedConfig Pre-fetched agent config fields.
+	 * @param userId        User ID (required in orchestrator mode).
 	 */
 	async createSession(
 		id?: string,
 		agentConfigId?: string,
 		resolvedConfig?: { provider?: string; model?: string; systemPrompt?: string | null; toolsEnabled?: string[] },
+		userId?: string,
 	): Promise<Session> {
 		// If the caller supplies an ID that already exists, return the existing session.
 		if (id) {
@@ -58,8 +77,43 @@ export class SessionManager {
 			if (existing) return existing.session
 		}
 
+		const sessionId = id ?? randomUUID()
+
+		// -- Orchestrator mode --
+		if (this.orchestrator) {
+			if (!userId) {
+				throw new Error(
+					"userId is required in orchestrator mode. " +
+						"Ensure the caller extracts userId from the auth context before calling createSession.",
+				)
+			}
+
+			const orchSession = await this.orchestrator.createSession(userId, {
+				sessionId,
+				agentConfigId,
+				resolvedConfig,
+			})
+
+			// Create a local Session object for gateway-level tracking
+			const session: Session = {
+				id: orchSession.id,
+				agentConfigId,
+				createdAt: orchSession.createdAt,
+				messages: [],
+			}
+
+			// Store a stub SessionState (no local agentSession in orchestrated mode)
+			this.sessions.set(session.id, {
+				agentSession: null as unknown as AgentSession,
+				session,
+			})
+
+			return session
+		}
+
+		// -- Local mode --
 		const session: Session = {
-			id: id ?? randomUUID(),
+			id: sessionId,
 			agentConfigId,
 			createdAt: new Date().toISOString(),
 			messages: [],
@@ -74,9 +128,6 @@ export class SessionManager {
 			cpSync(kbRoot, join(sessionDir, ".knowledge-base"), { recursive: true })
 		}
 
-		// Use pre-resolved config when available to avoid a redundant DB fetch.
-		// Fall back to a DB lookup when only agentConfigId is given, or to
-		// env-based defaults when neither is provided.
 		let agentConfig: { provider?: string; model?: string; systemPrompt?: string; toolsEnabled?: string[] } = {}
 		if (resolvedConfig) {
 			agentConfig = { ...resolvedConfig, systemPrompt: resolvedConfig.systemPrompt ?? undefined }
@@ -107,6 +158,13 @@ export class SessionManager {
 	}
 
 	deleteSession(id: string): boolean {
+		if (this.orchestrator) {
+			const session = this.sessions.get(id)
+			if (session) {
+				// Fire-and-forget orchestrator cleanup
+				void this.orchestrator.deleteSession(id)
+			}
+		}
 		this.emitters.delete(id)
 		return this.sessions.delete(id)
 	}
@@ -152,12 +210,83 @@ export class SessionManager {
 	/**
 	 * Send a user message and stream back gateway events.
 	 *
-	 * Delegates to the configured AgentProvider's session, mapping
-	 * AgentStreamEvents to GatewayEvents.
+	 * In orchestrator mode, delegates to the sandbox-server via the
+	 * OrchestratorSessionManager. In local mode, runs pi-agent in-process.
+	 *
+	 * @param userId Required in orchestrator mode; ignored in local mode.
 	 */
-	async *sendMessage(sessionId: string, content: string, signal?: AbortSignal): AsyncGenerator<GatewayEvent> {
+	async *sendMessage(
+		sessionId: string,
+		content: string,
+		signal?: AbortSignal,
+		userId?: string,
+	): AsyncGenerator<GatewayEvent> {
+		// -- Orchestrator mode --
+		if (this.orchestrator) {
+			if (!userId) {
+				yield { type: "error", error: "userId is required in orchestrator mode" }
+				return
+			}
+
+			// Ensure session exists in gateway state
+			if (!this.sessions.has(sessionId)) {
+				try {
+					await this.createSession(sessionId, undefined, undefined, userId)
+				} catch (err) {
+					const message = err instanceof Error ? err.message : "Failed to create session"
+					yield { type: "error", error: message }
+					return
+				}
+			}
+
+			const state = this.sessions.get(sessionId)
+			if (!state) {
+				yield { type: "error", error: `Session ${sessionId} could not be initialized` }
+				return
+			}
+
+			// Store user message
+			const userMsg: SessionMessage = {
+				id: randomUUID(),
+				role: "user",
+				content,
+				createdAt: new Date().toISOString(),
+			}
+			state.session.messages.push(userMsg)
+
+			let lastAssistantText = ""
+			let lastMessageId: string | undefined
+			const emitter = this.getEmitter(sessionId)
+
+			for await (const event of this.orchestrator.sendMessage(sessionId, userId, content, signal)) {
+				const gatewayEvent: GatewayEvent = event as GatewayEvent
+
+				if (event.type === "message_start") {
+					lastMessageId = event.id
+					lastAssistantText = ""
+				} else if (event.type === "message_update" && event.text) {
+					lastAssistantText += event.text
+				}
+
+				emitter.emit("event", gatewayEvent)
+				yield gatewayEvent
+			}
+
+			if (lastAssistantText) {
+				const assistantMsg: SessionMessage = {
+					id: lastMessageId ?? randomUUID(),
+					role: "assistant",
+					content: lastAssistantText,
+					createdAt: new Date().toISOString(),
+				}
+				state.session.messages.push(assistantMsg)
+			}
+
+			return
+		}
+
+		// -- Local mode --
 		// Auto-create session on first message if it doesn't exist yet.
-		// This allows the web app to use its own conversation IDs directly.
 		if (!this.sessions.has(sessionId)) {
 			await this.createSession(sessionId)
 		}

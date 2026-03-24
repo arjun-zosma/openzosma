@@ -1,8 +1,10 @@
 # Architecture
 
-## Current State (MVP)
+## Current State (MVP + Phase 4 Core)
 
-The MVP implements the minimum end-to-end flow: user types a question in the dashboard, gets a streaming LLM response back.
+The gateway supports two execution modes controlled by `OPENZOSMA_SANDBOX_MODE`:
+
+### Local Mode (default)
 
 ```
 Dashboard (Next.js :3000)
@@ -11,26 +13,65 @@ Dashboard (Next.js :3000)
      |
 Gateway (Hono :4000)
      |
-     OpenAI API (streaming, gpt-4o-mini)
+     pi-agent (in-process)
+     |
+     LLM API (streaming)
 ```
 
 **What is implemented:**
-- Gateway: Hono HTTP server with REST endpoints and WebSocket (`ws` package, `noServer` mode)
-- In-memory sessions (no database persistence)
-- Direct OpenAI streaming via `openai` SDK
-- No auth (open access)
-- No gRPC separation (gateway and session logic in one process)
-- Dashboard: Next.js 15 + React 19 + Tailwind CSS 4, single chat page at `/chat`
+- Gateway: Hono HTTP server with REST endpoints, WebSocket (`ws` package, `noServer` mode), and A2A protocol
+- Dual-mode SessionManager: local (in-process pi-agent) or orchestrator (per-user sandboxes)
+- Auth via Better Auth (email/password + OAuth)
+- Database persistence via PostgreSQL (db-migrate migrations)
+- Dashboard: Next.js 15 + React 19 + Tailwind CSS 4, chat page at `/chat`
 
-**What is planned (see below for full design):**
-- Auth (Better Auth), database persistence, gRPC gateway-orchestrator split
-- NemoClaw sandbox isolation, Valkey pub/sub, RabbitMQ event bus
-- A2A protocol, SSE streaming, channel adapters (Slack, WhatsApp)
-- Full dashboard (sessions list, agents config, connections, settings)
+### Orchestrator Mode
+
+```
+Dashboard (Next.js :3000)
+     |
+     WebSocket (/ws) + REST (/api/v1/*)
+     |
+Gateway (Hono :4000)
+     |
+     OrchestratorSessionManager (in-process library)
+     |
+     SandboxManager -> OpenShell CLI
+     |
+     HTTP/SSE (via pod IP or openshell exec)
+     |
+Per-user OpenShell Sandbox
+     |
+     sandbox-server (Hono :8080)
+     |
+     pi-agent -> LLM API
+```
+
+**What is implemented (Phase 4a + 4b):**
+- OpenShell CLI wrapper (`packages/sandbox/`) -- TypeScript client for `openshell` binary
+- Sandbox HTTP server (`packages/sandbox-server/`) -- Hono server wrapping pi-agent inside sandbox
+- Per-user sandbox manager (`packages/orchestrator/src/sandbox-manager.ts`) -- creates, suspends, resumes, destroys sandboxes
+- HTTP/SSE client (`packages/orchestrator/src/sandbox-http-client.ts`) -- communicates with sandbox-server
+- Orchestrator session manager (`packages/orchestrator/src/session-manager.ts`) -- bridges gateway to sandbox sessions
+- Quota enforcement (`packages/orchestrator/src/quota.ts`)
+- Health check loop (`packages/orchestrator/src/health.ts`)
+- Sandbox Docker image (`infra/openshell/Dockerfile`) -- multi-stage build with immutable + writable split
+- Security policies (`infra/openshell/policies/`) -- default.yaml + presets (slack, docker, huggingface)
+- DB migration: `user_sandboxes` table for tracking sandbox lifecycle
+- Env-var-based config loading (`packages/orchestrator/src/config.ts`)
+- Gateway wiring: `OPENZOSMA_SANDBOX_MODE=orchestrator` activates sandbox mode
+
+**What is planned (not yet implemented):**
+- Valkey pub/sub for multi-gateway fan-out
+- RabbitMQ event bus (webhooks, analytics)
+- Channel adapters (Slack, WhatsApp)
+- Integration tests for sandbox lifecycle
 
 ## System Overview
 
-OpenZosma is a self-hosted AI agent platform. The backend is a standalone TypeScript service. Clients (Next.js dashboard, React Native app, WhatsApp bot, Slack bot, external A2A agents) are independent consumers connected via REST, WebSocket, or A2A protocol. Internal services communicate via gRPC.
+OpenZosma is a self-hosted AI agent platform. The backend is a standalone TypeScript service. Clients (Next.js dashboard, React Native app, WhatsApp bot, Slack bot, external A2A agents) are independent consumers connected via REST, WebSocket, or A2A protocol.
+
+The orchestrator is an **in-process library** imported by the gateway -- not a separate service. When `OPENZOSMA_SANDBOX_MODE=orchestrator`, the gateway instantiates `SandboxManager` and `OrchestratorSessionManager` which communicate with sandbox-server instances inside OpenShell sandboxes via **HTTP/SSE**.
 
 There are no Next.js API routes in the critical path. The backend owns all business logic.
 
@@ -51,37 +92,27 @@ There are no Next.js API routes in the critical path. The backend owns all busin
 |  Auth middleware (Better Auth)                                    |
 |  Rate limiting (configurable)                                    |
 |  Request validation                                              |
+|                                                                  |
+|  SessionManager (dual mode: local or orchestrator)               |
 +-------------------------------+---------------------------------+
                                 |
-                          gRPC (internal)
-                                |
-                                v
-+-----------------------------------------------------------------+
-|                       Orchestrator                                |
-|                                                                  |
-|  Session Manager        Sandbox Pool        Config Manager       |
-|  - create/destroy       - pre-warm          - quotas (optional)  |
-|  - state machine        - allocate/release  - rate limits        |
-|  - message routing      - health checks     - settings           |
-|                                                                  |
-|  Event Bus (RabbitMQ)   State Store (Valkey)                     |
-|  - webhooks             - active sessions                        |
-|  - analytics            - message cache                          |
-|  - async tasks          - pub/sub fan-out                        |
-+-------------------------------+---------------------------------+
-                                |
-                    gRPC bidirectional streaming
+                   (orchestrator mode only)
+                          HTTP / SSE
                                 |
               +-----------------+------------------+
               v                 v                  v
 +----------------+  +----------------+  +----------------+
 |  OpenShell     |  |  OpenShell     |  |  OpenShell     |
 |  Sandbox       |  |  Sandbox       |  |  Sandbox       |
+|  (user A)      |  |  (user B)      |  |  (user C)      |
 |                |  |                |  |                |
-|  pi-coding-    |  |  pi-coding-    |  |  pi-coding-    |
-|  agent (gRPC)  |  |  agent (gRPC)  |  |  agent (gRPC)  |
+|  sandbox-server|  |  sandbox-server|  |  sandbox-server|
+|  (Hono :8080)  |  |  (Hono :8080)  |  |  (Hono :8080)  |
+|  pi-agent      |  |  pi-agent      |  |  pi-agent      |
 +----------------+  +----------------+  +----------------+
 ```
+
+Each user gets **one persistent sandbox** that persists across sessions. Sessions are conversations within that sandbox. Sandboxes are created on first use, suspended after idle timeout, and resumed on next activity.
 
 ## Communication Protocols
 
@@ -89,15 +120,10 @@ There are no Next.js API routes in the critical path. The backend owns all busin
 |---|---|---|
 | External clients -> Gateway | REST + WebSocket | Web dashboard, SDK, mobile |
 | External agents -> Gateway | A2A (JSON-RPC 2.0 over HTTPS + SSE) | Agent-to-agent |
-| Gateway -> Orchestrator | gRPC | Internal service-to-service |
-| Orchestrator -> Sandbox | gRPC bidirectional streaming | Agent message routing |
+| Gateway -> Sandbox (orchestrator mode) | HTTP/SSE (via pod IP) | Session creation, message proxying, health checks |
 | Channel adapters | Native (Slack Socket Mode, WhatsApp webhooks) | Slack, WhatsApp |
 
-gRPC is used for all internal communication. Benefits over stdin/stdout JSONL:
-- Binary protocol (protobuf), lower overhead
-- Bidirectional streaming (perfect for agent event streams)
-- Strong typing via `.proto` definitions
-- Works across network boundaries (not just local K3s exec)
+HTTP/SSE is used for orchestrator-to-sandbox communication. The `SandboxHttpClient` connects to the sandbox-server's Hono HTTP endpoint inside the OpenShell pod. SSE is used for streaming agent events back to the gateway during message processing. gRPC proto definitions exist in `proto/` and `packages/grpc/` but are not used at runtime.
 
 ## Components
 
@@ -132,14 +158,14 @@ Methods: `tasks/send`, `tasks/sendSubscribe` (SSE), `tasks/get`, `tasks/cancel`,
 
 A2A tasks map 1:1 to OpenZosma sessions.
 
-Internally, the gateway communicates with the orchestrator via gRPC.
+In orchestrator mode, the gateway delegates session operations to the `OrchestratorSessionManager` (an in-process library), which communicates with sandbox-server instances via HTTP/SSE.
 
 ### gRPC Definitions (`packages/grpc/`, `proto/`)
 
-Proto definitions for internal services:
+Proto definitions exist for planned services but are **not used at runtime**. The orchestrator communicates with sandboxes via HTTP/SSE instead.
 
 ```protobuf
-// proto/orchestrator.proto
+// proto/orchestrator.proto (reference only, not used at runtime)
 service OrchestratorService {
   rpc CreateSession(CreateSessionRequest) returns (Session);
   rpc EndSession(EndSessionRequest) returns (Empty);
@@ -149,7 +175,7 @@ service OrchestratorService {
   rpc ListActiveSessions(ListActiveSessionsRequest) returns (SessionList);
 }
 
-// proto/sandbox.proto
+// proto/sandbox.proto (reference only, not used at runtime)
 service SandboxAgentService {
   rpc ProcessMessage(stream AgentMessage) returns (stream AgentEvent);
   rpc HealthCheck(Empty) returns (HealthResponse);
@@ -158,55 +184,63 @@ service SandboxAgentService {
 
 ### Orchestrator (`packages/orchestrator/`)
 
-Core business logic layer. Responsibilities:
+In-process library imported by the gateway (not a separate service). Active when `OPENZOSMA_SANDBOX_MODE=orchestrator`. Key components:
 
-- **Session lifecycle:** Create, pause, resume, destroy sessions. State machine: `created -> active -> paused -> ended` or `created -> active -> failed`.
-- **Sandbox pool:** Maintain pre-warmed sandboxes. Allocate on session creation, release on session end. Health checks and automatic replacement. Pool size is configurable.
-- **Message routing:** Accept messages from gateway via gRPC, forward to sandbox via gRPC bidirectional streaming, stream responses back.
-- **Configurable quotas:** Optional concurrent session limits, token budgets, rate limits (configured via env vars or settings table).
-- **Event emission:** Publish events to RabbitMQ for async consumers (webhooks, analytics).
+- **`SandboxManager`** -- Per-user sandbox lifecycle. Creates sandboxes on demand via OpenShell CLI, suspends after idle timeout, resumes on next activity, destroys on explicit request. Tracks state in both PostgreSQL (`user_sandboxes` table) and in-memory (`SandboxState` map).
+- **`OrchestratorSessionManager`** -- Bridge between the gateway's `SessionManager` and sandbox-server instances. Creates sessions inside sandboxes via HTTP, proxies messages via SSE streaming, cleans up on session end.
+- **`SandboxHttpClient`** -- HTTP/SSE client for communicating with the sandbox-server Hono endpoint. Supports health checks, session CRUD, and SSE message streaming.
+- **`loadConfigFromEnv()`** -- Reads `SANDBOX_IMAGE`, `SANDBOX_AGENT_PORT`, `MAX_SANDBOXES`, etc. from environment variables.
+- **Quota enforcement** -- Optional concurrent sandbox and session limits.
+- **Health check loop** -- Background sweep that checks sandbox health and suspends idle sandboxes.
 
-### Sandbox Manager (`packages/sandbox/`)
+### Sandbox (`packages/sandbox/`, `packages/sandbox-server/`)
 
-Wrapper around NVIDIA OpenShell CLI/API.
+**`packages/sandbox/`** -- TypeScript wrapper around the NVIDIA OpenShell CLI binary. Provides:
+- `OpenShellClient` class with methods for `create`, `list`, `info`, `delete`, `suspend`, `resume`, `exec`
+- `PolicyBuilder` for constructing OpenShell YAML policies programmatically
+- Error types: `SandboxNotFoundError`, `SandboxNotReadyError`, `OpenShellError`
 
-**Sandbox lifecycle:**
-1. Session created -> Orchestrator requests sandbox from pool
-2. OpenShell creates K3s pod with custom Docker image (Node.js + pi-coding-agent)
-3. YAML policy applied (filesystem, network, process restrictions)
-4. Credentials injected via OpenShell credential provider (env vars, never on filesystem)
-5. pi-coding-agent starts with gRPC server listening
-6. Orchestrator connects to sandbox gRPC endpoint
-7. Session ends -> sandbox destroyed, resources freed
+**`packages/sandbox-server/`** -- Lightweight Hono HTTP server that runs **inside** the sandbox container as the main process. It wraps pi-agent and exposes:
+- `GET /health` -- sandbox health status
+- `POST /sessions` -- create a new agent session
+- `POST /sessions/:id/messages` -- send message, returns SSE stream of `AgentStreamEvent`
+- `DELETE /sessions/:id` -- end a session
+- `GET /sessions` -- list active sessions
 
-**Policy structure:**
+**Sandbox lifecycle (per-user persistent model):**
+1. User sends first message -> Gateway asks `SandboxManager.ensureSandbox(userId)`
+2. `SandboxManager` checks `user_sandboxes` DB table for existing sandbox
+3. If none exists: creates OpenShell sandbox with custom Docker image + YAML policy
+4. If suspended: resumes the existing sandbox
+5. Waits for sandbox-server to become ready (HTTP health check)
+6. `OrchestratorSessionManager` creates a session inside the sandbox via HTTP
+7. Messages are proxied via SSE streaming
+8. After idle timeout (default 30 min): sandbox is suspended (state preserved)
+9. On next activity: sandbox is resumed (faster than cold start)
+
+**Policy structure** (`infra/openshell/policies/default.yaml`):
 ```yaml
-filesystem:
-  allow_read: ["/workspace", "/tmp"]
-  allow_write: ["/workspace", "/tmp"]
-  deny: ["/etc/passwd", "/proc", "/sys"]
-network:
-  allow:
-    - host: "api.openai.com"
-      methods: ["POST"]
-      paths: ["/v1/chat/completions"]
-    - host: "api.anthropic.com"
-  deny_all_other: true
-process:
-  allow: ["node", "python3", "git", "npm"]
-  deny: ["sudo", "su", "chmod"]
-inference:
-  provider: "openai"
-  model: "gpt-4o"
+version: "1.0"
+sandbox:
+  filesystem:
+    allow_read: ["/workspace", "/tmp", "/usr/local/lib/node_modules"]
+    allow_write: ["/workspace", "/tmp"]
+    deny: ["/etc/shadow", "/proc/kcore"]
+  network:
+    default: deny
+    allow:
+      - host: "api.openai.com"
+      - host: "api.anthropic.com"
+  process:
+    allow: ["node", "npm", "npx", "python3", "git", "bash"]
+    deny: ["sudo", "su", "chmod", "chown"]
 ```
 
-Policies are configurable via the settings. Filesystem and process policies are locked at sandbox creation. Network and inference policies are hot-reloadable.
-
-**Sandbox pool:** Configurable pool size (env var `SANDBOX_POOL_SIZE`, default 2). No per-tier logic in the OSS version.
+Presets in `infra/openshell/policies/presets/` extend the default policy for specific use cases (Slack, Docker, HuggingFace).
 
 ### Database (`packages/db/`)
 
-PostgreSQL with raw SQL via `pg` driver. Migrations via `node-pg-migrate`.
+PostgreSQL with raw SQL via `pg` driver. Migrations via `db-migrate`.
 
 Core tables:
 
@@ -220,6 +254,7 @@ Core tables:
 | `usage` | id, session_id, tokens_in, tokens_out, cost, model, created_at |
 | `connections` | id, name, type, encrypted_credentials, schema_cache, read_only, created_at |
 | `settings` | key, value (instance-level configuration) |
+| `user_sandboxes` | id, user_id, sandbox_name, status, metadata, created_at, last_active_at |
 
 ### Cache and Pub/Sub (Valkey)
 
@@ -253,7 +288,7 @@ Implementation using `@a2a-js/sdk`:
 
 ### Channel Adapters (`packages/adapters/`)
 
-Each adapter translates between a channel's native protocol and the OpenZosma orchestrator (via gRPC or REST).
+Each adapter translates between a channel's native protocol and the OpenZosma gateway (via REST or direct SessionManager calls).
 
 **Slack** (`packages/adapters/slack/`):
 - Based on existing `pi-mom` package in pi-mono
@@ -312,17 +347,26 @@ Pages:
 
 ### User sends a message (WebSocket)
 
+**Local mode:**
 ```
 1. Client -> WebSocket -> Gateway
 2. Gateway authenticates, validates
-3. Gateway -> gRPC -> Orchestrator.SendMessage(sessionId, message)
-4. Orchestrator looks up sandbox for session (Valkey)
-5. Orchestrator -> gRPC bidirectional stream -> pi-agent in sandbox
-6. pi-agent processes message, calls tools, streams AgentEvents
-7. AgentEvents -> gRPC stream -> Orchestrator
-8. Orchestrator persists to PostgreSQL, caches in Valkey
-9. Orchestrator publishes to Valkey pub/sub
-10. Gateway picks up from pub/sub -> pushes to all connected WebSocket clients
+3. SessionManager runs pi-agent in-process
+4. pi-agent processes message, calls tools, streams AgentEvents
+5. Events emitted to per-session EventEmitter
+6. Gateway pushes events to all connected WebSocket/SSE clients
+```
+
+**Orchestrator mode:**
+```
+1. Client -> WebSocket -> Gateway
+2. Gateway authenticates, validates
+3. SessionManager delegates to OrchestratorSessionManager
+4. OrchestratorSessionManager ensures user's sandbox is running (SandboxManager)
+5. OrchestratorSessionManager -> HTTP POST -> sandbox-server /sessions/:id/messages
+6. sandbox-server runs pi-agent, streams AgentEvents back via SSE
+7. OrchestratorSessionManager reads SSE stream, emits events to gateway
+8. Gateway pushes events to all connected WebSocket/SSE clients
 ```
 
 ### A2A task lifecycle
@@ -331,7 +375,7 @@ Pages:
 1. External agent -> POST /a2a { method: "tasks/sendSubscribe", params: { message } }
 2. Gateway parses JSON-RPC, authenticates via Agent Card
 3. Gateway creates OpenZosma session (if new task) or routes to existing
-4. Orchestrator processes message through sandbox (gRPC)
+4. SessionManager processes message (local or orchestrator mode)
 5. AgentEvents streamed back as SSE (Content-Type: text/event-stream)
 6. Task status transitions: submitted -> working -> completed/failed
 7. If push notification configured, webhook fired on completion
@@ -349,7 +393,7 @@ Key abstractions used:
 - `AgentEvent` (`agent/src/types.ts:199-214`) -- agent lifecycle events
 - `ProxyAssistantMessageEvent` (`agent/src/proxy.ts:36-57`) -- bandwidth-optimized wire format
 - `EventStream<T, R>` (`ai/src/utils/event-stream.ts`) -- generic async iterable
-- RPC mode (stdin/stdout JSONL) -- already exists in pi-coding-agent, will be extended with gRPC
+- RPC mode (stdin/stdout JSONL) -- already exists in pi-coding-agent, used by sandbox-server to host pi-agent inside OpenShell
 
 Phase 1 refactors pi-coding-agent to remove 7 global state issues that block multi-instance usage. See [docs/PHASE-1-MULTITENANT.md](./docs/PHASE-1-MULTITENANT.md) for details.
 

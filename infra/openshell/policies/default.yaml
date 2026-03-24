@@ -1,0 +1,62 @@
+# =============================================================================
+# Default sandbox policy for OpenZosma pi-agent sandboxes.
+#
+# Adapted from NemoClaw's openclaw-sandbox.yaml for the pi-coding-agent
+# runtime. Deny-by-default filesystem with explicit allowlists.
+# Network uses a catch-all HTTPS rule so the agent can reach any API.
+#
+# Filesystem and process policies are locked at sandbox creation.
+# Network policies are hot-reloadable via OpenShell.
+# =============================================================================
+
+version: 1
+
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - "/usr"
+    - "/lib"
+    - "/proc"
+    - "/dev/urandom"
+    - "/app"
+    - "/etc"
+    - "/var/log"
+  read_write:
+    - "/sandbox"
+    - "/workspace"
+    - "/tmp"
+    - "/dev/null"
+    - "/home/sandbox"
+
+landlock:
+  compatibility: best_effort
+
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+
+# ---------------------------------------------------------------------------
+# Network policy: catch-all HTTPS
+#
+# The sandbox itself IS the security boundary (Landlock + network namespace).
+# Rather than maintaining a per-host allowlist, we allow all outbound HTTPS
+# from node so the agent can reach any API (LLM providers, npm, GitHub,
+# user-requested endpoints, etc.). Non-HTTPS traffic is denied by default.
+#
+# To tighten this later, replace the catch-all with per-host rules.
+# ---------------------------------------------------------------------------
+network_policies:
+  allow_all_https:
+    name: allow_all_https
+    endpoints:
+      - host: "*"
+        port: 443
+        enforcement: enforce
+    binaries:
+      - path: "/usr/local/bin/node"
+      - path: "/usr/local/bin/npm"
+      - path: "/usr/local/bin/npx"
+      - path: "/usr/bin/git"
+      - path: "/usr/bin/python3"
+      - path: "/usr/bin/pip3"
+      - path: "/usr/bin/curl"

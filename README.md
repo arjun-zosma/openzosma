@@ -74,6 +74,24 @@ pnpm --filter @openzosma/web dev       # Terminal 2 (port 3000)
 
 Open <http://localhost:3000>, sign up, and start a conversation.
 
+### Running with Sandboxes (Optional)
+
+To run agent sessions inside isolated OpenShell sandboxes instead of in-process:
+
+```bash
+# 1. Install the OpenShell CLI (https://github.com/NVIDIA/OpenShell)
+# 2. Build the sandbox image
+docker build -f infra/openshell/Dockerfile -t openzosma/sandbox-server:latest .
+
+# 3. Set sandbox mode in .env.local
+echo 'OPENZOSMA_SANDBOX_MODE=orchestrator' >> .env.local
+
+# 4. Start the gateway (it will create sandboxes on demand)
+pnpm --filter @openzosma/gateway dev
+```
+
+See [infra/openshell/README.md](./infra/openshell/README.md) for sandbox image details and policy configuration.
+
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full development setup, environment variables, and conventions.
 
 ## Architecture
@@ -81,17 +99,19 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full development setup, environ
 ```
 Clients (Web, Mobile, WhatsApp, Slack, A2A agents)
                     |
-            API Gateway (REST / WebSocket / A2A / gRPC)
+            API Gateway (REST / WebSocket / A2A)
                     |
-              Orchestrator (session management, routing, quotas)
-                    |
-            +-------+-------+
-            |       |       |
-        Sandbox  Sandbox  Sandbox
-        (isolated agent sessions)
+              Orchestrator (in-process library)
+                    |  HTTP / SSE
+                    v
+            Per-user OpenShell Sandboxes
+            (one persistent sandbox per user)
 ```
 
-Each agent session runs inside an isolated sandbox. The orchestrator manages sandbox lifecycle and routes messages. External clients connect via REST, WebSocket, or A2A. Internal communication uses gRPC with bidirectional streaming.
+The gateway runs in two modes controlled by `OPENZOSMA_SANDBOX_MODE`:
+
+- **`local`** (default) -- pi-agent runs in-process inside the gateway. No OpenShell needed. Good for development.
+- **`orchestrator`** -- Each user gets a persistent OpenShell sandbox. The orchestrator (an in-process library, not a separate service) manages sandbox lifecycle and proxies messages to the sandbox-server via HTTP/SSE. Sandboxes are created on demand and suspended after idle timeout.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 
@@ -110,7 +130,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 | -------------- | ---------------------------------------------------------- |
 | Runtime        | Node.js 22 (TypeScript)                                    |
 | HTTP Server    | Hono                                                       |
-| Internal RPC   | gRPC (`@grpc/grpc-js`, `protobuf-ts`)                      |
+| Internal RPC   | HTTP/SSE (orchestrator to sandbox-server inside OpenShell) |
 | Database       | PostgreSQL (raw SQL via `pg`, migrations via `db-migrate`) |
 | Auth           | Better Auth                                                |
 | Sandbox        | NVIDIA NemoClaw + OpenShell                                |
@@ -120,15 +140,15 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 
 ## Repository Structure
 
-| Phase                                     | Description                                   | Duration  | Status                                           |
-| ----------------------------------------- | --------------------------------------------- | --------- | ------------------------------------------------ |
-| [Phase 1](./docs/PHASE-1-MULTITENANT.md)  | Multi-instance pi-agent refactor (in pi-mono) | 3-4 days  | Complete                                         |
-| [Phase 2](./docs/PHASE-2-MONOREPO.md)     | OpenZosma monorepo setup + DB schema + auth   | 1 week    | Complete                                         |
-| [Phase 3](./docs/PHASE-3-GATEWAY.md)      | API Gateway + A2A + gRPC server               | 1 week    | In progress (REST + A2A done, gRPC/auth pending) |
-| [Phase 4](./docs/PHASE-4-ORCHESTRATOR.md) | Orchestrator + NemoClaw sandbox integration   | 1.5 weeks | Not started                                      |
-| [Phase 5](./docs/PHASE-5-ADAPTERS.md)     | Channel adapters (Slack, WhatsApp)            | 1 week    | Not started                                      |
-| [Phase 6](./docs/PHASE-6-SKILLS.md)       | Enterprise skills (database tool, reports)    | 2 weeks   | Not started                                      |
-| [Phase 7](./docs/PHASE-7-DASHBOARD.md)    | Web dashboard (Next.js)                       | 2 weeks   | In progress (MVP)                                |
+| Phase                                     | Description                                   | Duration  | Status                                              |
+| ----------------------------------------- | --------------------------------------------- | --------- | --------------------------------------------------- |
+| [Phase 1](./docs/PHASE-1-MULTITENANT.md)  | Multi-instance pi-agent refactor (in pi-mono) | 3-4 days  | Complete                                            |
+| [Phase 2](./docs/PHASE-2-MONOREPO.md)     | OpenZosma monorepo setup + DB schema + auth   | 1 week    | Complete                                            |
+| [Phase 3](./docs/PHASE-3-GATEWAY.md)      | API Gateway + A2A + auth                      | 1 week    | Complete (REST + A2A + WebSocket + auth)             |
+| [Phase 4](./docs/PHASE-4-ORCHESTRATOR.md) | Orchestrator + OpenShell sandbox integration  | 1.5 weeks | In progress (core infra done, integration pending)  |
+| [Phase 5](./docs/PHASE-5-ADAPTERS.md)     | Channel adapters (Slack, WhatsApp)            | 1 week    | Not started                                         |
+| [Phase 6](./docs/PHASE-6-SKILLS.md)       | Enterprise skills (database tool, reports)    | 2 weeks   | Not started                                         |
+| [Phase 7](./docs/PHASE-7-DASHBOARD.md)    | Web dashboard (Next.js)                       | 2 weeks   | In progress (MVP)                                   |
 
 **MVP (Phases 1-4):** \~4 weeks
 **Full platform (Phases 1-7):** \~10 weeks
@@ -157,19 +177,21 @@ openzosma/
     web/                  Next.js dashboard
     mobile/               React Native app (planned)
   packages/
-    gateway/              API gateway (REST + WebSocket + A2A)
-    orchestrator/         Session lifecycle, sandbox pool
+    gateway/              API gateway (REST + WebSocket + A2A), dual-mode session manager
+    orchestrator/         Sandbox lifecycle, session proxying, health checks, quotas
     agents/               Agent provider interface + implementations
+    sandbox/              OpenShell CLI wrapper (TypeScript)
+    sandbox-server/       Hono HTTP server running inside sandbox containers
     db/                   Database migrations and query module
     auth/                 Better Auth setup
-    sandbox/              NemoClaw sandbox wrapper
     a2a/                  A2A protocol implementation
-    grpc/                 Proto definitions + generated stubs
+    grpc/                 Proto definitions + generated stubs (not used at runtime)
     sdk/                  Client SDK (@openzosma/sdk)
     adapters/             Channel adapters (Slack, WhatsApp)
     skills/               Enterprise skills (reports, charts)
   proto/                  Protobuf service definitions
-  infra/                  NemoClaw sandbox configs, Kubernetes manifests
+  infra/
+    openshell/            Sandbox Dockerfile, policies, entrypoint script
   docs/                   Implementation plans and design docs
 ```
 

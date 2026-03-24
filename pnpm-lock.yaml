@@ -444,6 +444,9 @@ importers:
       '@openzosma/grpc':
         specifier: workspace:*
         version: link:../grpc
+      '@openzosma/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       a2a-js:
         specifier: ^0.2.0
         version: 0.2.0
@@ -500,12 +503,12 @@ importers:
 
   packages/orchestrator:
     dependencies:
+      '@openzosma/agents':
+        specifier: workspace:*
+        version: link:../agents
       '@openzosma/db':
         specifier: workspace:*
         version: link:../db
-      '@openzosma/grpc':
-        specifier: workspace:*
-        version: link:../grpc
       '@openzosma/sandbox':
         specifier: workspace:*
         version: link:../sandbox
@@ -521,10 +524,25 @@ importers:
         version: 5.9.3
 
   packages/sandbox:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.2
+        version: 22.19.15
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  packages/sandbox-server:
     dependencies:
-      '@openzosma/grpc':
+      '@hono/node-server':
+        specifier: ^1.14.1
+        version: 1.19.11(hono@4.12.8)
+      '@openzosma/agents':
         specifier: workspace:*
-        version: link:../grpc
+        version: link:../agents
+      hono:
+        specifier: ^4.7.6
+        version: 4.12.8
     devDependencies:
       '@types/node':
         specifier: ^22.15.2

@@ -45,7 +45,7 @@ export function handleWebSocket(ws: WebSocket, sessionManager: SessionManager): 
 			const controller = new AbortController()
 			activeTurns.set(msg.sessionId, controller)
 
-			void streamResponse(ws, sessionManager, msg.sessionId, msg.content, controller)
+			void streamResponse(ws, sessionManager, msg.sessionId, msg.content, controller, msg.userId)
 			return
 		}
 
@@ -68,11 +68,15 @@ async function streamResponse(
 	sessionId: string,
 	content: string,
 	controller: AbortController,
+	userId?: string,
 ): Promise<void> {
 	try {
-		for await (const event of sessionManager.sendMessage(sessionId, content, controller.signal)) {
+		for await (const event of sessionManager.sendMessage(sessionId, content, controller.signal, userId)) {
 			send(ws, event)
 		}
+	} catch (err) {
+		const message = err instanceof Error ? err.message : "Internal server error"
+		send(ws, { type: "error", error: message })
 	} finally {
 		activeTurns.delete(sessionId)
 	}

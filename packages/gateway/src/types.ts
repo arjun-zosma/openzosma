@@ -39,7 +39,7 @@ export interface GatewayEvent {
 
 /** Inbound WebSocket message from client. */
 export type WsClientMessage =
-	| { type: "message"; sessionId: string; content: string }
+	| { type: "message"; sessionId: string; content: string; userId?: string }
 	| { type: "cancel"; sessionId: string }
 	| { type: "ping" }
 

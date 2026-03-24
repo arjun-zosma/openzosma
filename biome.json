@@ -45,7 +45,8 @@
 			"*.proto",
 			"*.sql",
 			"**/migrations/*.js",
-			"next-env.d.ts"
+			"next-env.d.ts",
+			"workspace/"
 		]
 	}
 }

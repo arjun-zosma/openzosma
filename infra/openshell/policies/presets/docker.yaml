@@ -1,0 +1,19 @@
+# Docker Hub / Container registry access preset
+docker:
+  name: docker
+  endpoints:
+    - host: "registry-1.docker.io"
+      port: 443
+      tls: passthrough
+      enforcement: enforce
+    - host: "auth.docker.io"
+      port: 443
+      tls: passthrough
+      enforcement: enforce
+    - host: "nvcr.io"
+      port: 443
+      tls: passthrough
+      enforcement: enforce
+  binaries:
+    - path: "/usr/local/bin/node"
+    - path: "/usr/bin/docker"

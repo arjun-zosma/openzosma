@@ -7,7 +7,7 @@
 - [Node.js 22+](https://nodejs.org/) (see `.nvmrc` / `.node-version`)
 - [pnpm 9+](https://pnpm.io/)
 - Docker and Docker Compose (for PostgreSQL, Valkey, RabbitMQ)
-- [NemoClaw CLI](https://github.com/NVIDIA/NemoClaw) (for sandbox development, Phase 4+)
+- [NemoClaw CLI](https://github.com/NVIDIA/NemoClaw) (for sandbox development, Phase 4+) -- only needed when running in orchestrator mode
 
 ### Getting Started
 
@@ -30,7 +30,7 @@ cp .env.example .env.local
 pnpm db:migrate          # Public schema tables (gateway + web app)
 pnpm db:migrate:auth     # Auth schema tables (better-auth)
 
-# Generate gRPC stubs from proto definitions
+# Generate gRPC stubs from proto definitions (stubs exist but are not used at runtime)
 pnpm proto:generate
 
 # Build all packages
@@ -93,7 +93,7 @@ If you prefer not to install Node.js and pnpm locally:
 docker build -f Dockerfile.dev -t openzosma-dev .
 docker run -it --rm \
   -v $(pwd):/app \
-  -p 4000:4000 -p 50051:50051 \
+  -p 4000:4000 \
   openzosma-dev bash
 ```
 
@@ -107,8 +107,8 @@ Build individual services using multi-stage targets:
 # API Gateway
 docker build --target gateway -t openzosma-gateway .
 
-# Orchestrator
-docker build --target orchestrator -t openzosma-orchestrator .
+# Sandbox image (for OpenShell sandboxes)
+docker build -f infra/openshell/Dockerfile -t openzosma/sandbox-server:latest .
 ```
 
 ### Environment Variables
@@ -127,7 +127,8 @@ DB_POOL_SIZE=10
 # DATABASE_URL=postgres://openzosma:openzosma@localhost:5432/openzosma
 
 # Auth
-BETTER_AUTH_SECRET=<random-secret>
+AUTH_SECRET=<random-secret>
+AUTH_URL=http://localhost:3000
 # ENCRYPTION_KEY can be either:
 # - a 64-char hex string (used directly as a 32-byte key), or
 # - any other passphrase (a key will be derived from it)
@@ -144,20 +145,26 @@ GOOGLE_CLIENT_SECRET=
 # Gateway
 GATEWAY_PORT=4000
 GATEWAY_HOST=0.0.0.0
+PUBLIC_URL=http://localhost:4000
 
-# Valkey (Redis-compatible)
+# Agent
+OPENZOSMA_MODEL_PROVIDER=anthropic
+OPENZOSMA_MODEL_ID=claude-sonnet-4-20250514
+OPENZOSMA_WORKSPACE=./workspace
+
+# Valkey (Redis-compatible) -- not yet implemented
 VALKEY_URL=redis://localhost:6379
 
-# RabbitMQ
+# RabbitMQ -- not yet implemented
 RABBITMQ_URL=amqp://openzosma:openzosma@localhost:5672
 
-# gRPC
-ORCHESTRATOR_GRPC_HOST=0.0.0.0
-ORCHESTRATOR_GRPC_PORT=50051
-SANDBOX_GRPC_PORT=50052
-
-# Sandbox pool
-SANDBOX_POOL_SIZE=2
+# Sandbox / Orchestrator
+# "local" = in-process pi-agent (default), "orchestrator" = per-user OpenShell sandboxes
+OPENZOSMA_SANDBOX_MODE=local
+SANDBOX_IMAGE=openzosma/sandbox-server:latest
+SANDBOX_AGENT_PORT=8080
+SANDBOX_POLICY_PATH=infra/openshell/policies/default.yaml
+MAX_SANDBOXES=0
 
 # LLM providers (at least one required)
 OPENAI_API_KEY=
@@ -186,7 +193,8 @@ ANTHROPIC_API_KEY=
 
 ### gRPC / Protobuf
 
-- Proto definitions live in `proto/` at repo root
+Proto definitions exist in `proto/` at repo root but are **not used at runtime**. The orchestrator communicates with sandboxes via HTTP/SSE. Stubs are generated and checked in for reference.
+
 - Generated TypeScript stubs go to `packages/grpc/src/generated/`
 - Regenerate after proto changes: `pnpm proto:generate`
 - Code generation uses `@protobuf-ts/plugin` via `npx protoc`
@@ -220,8 +228,8 @@ ANTHROPIC_API_KEY=
 ```
 apps/             Frontend applications (web dashboard, mobile)
 packages/         Backend packages (each is an independent npm package)
-proto/            Protobuf service definitions (shared across packages)
-infra/            Infrastructure configs (NemoClaw sandbox Dockerfile, K8s manifests)
+proto/            Protobuf service definitions (not used at runtime)
+infra/            Infrastructure configs (OpenShell sandbox Dockerfile, policies)
 docs/             Phase implementation plans and design docs
 ```
 

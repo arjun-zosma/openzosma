@@ -1,44 +1,104 @@
 # =============================================================================
-# NemoClaw sandbox image
-# Runs pi-coding-agent inside an OpenShell sandbox with gRPC server.
-# Built and managed by the orchestrator's sandbox pool.
+# OpenZosma Agent Sandbox Image
+#
+# Runs pi-coding-agent inside an NVIDIA OpenShell sandbox with an HTTP server
+# for communication with the orchestrator. Each user gets a persistent sandbox
+# built from this image.
+#
+# Architecture follows NemoClaw's pattern:
+# - Multi-stage build (builder + runtime)
+# - Immutable config (root-owned) + writable workspace (sandbox-owned)
+# - Non-root execution via sandbox user
+# - tini as init process for proper signal handling
+#
+# Uses `pnpm deploy` to produce a self-contained directory with all
+# dependencies resolved (no symlinks), which is required because Docker
+# COPY does not preserve pnpm's symlinked node_modules structure.
 # =============================================================================
 
+# ---------------------------------------------------------------------------
+# Stage 1: Build sandbox-server and produce a deployable bundle
+# ---------------------------------------------------------------------------
+FROM node:22-slim AS builder
+
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
+
+WORKDIR /build
+
+# Copy workspace config for dependency resolution
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
+COPY packages/sandbox-server/package.json packages/sandbox-server/
+COPY packages/agents/package.json packages/agents/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source and build
+COPY packages/agents/ packages/agents/
+COPY packages/sandbox-server/ packages/sandbox-server/
+
+RUN pnpm --filter @openzosma/agents run build
+RUN pnpm --filter @openzosma/sandbox-server run build
+
+# Use pnpm deploy to create a self-contained directory with all runtime
+# dependencies resolved (no symlinks). This is the standard pnpm approach
+# for Docker production builds.
+RUN pnpm --filter @openzosma/sandbox-server deploy /deploy --prod --legacy
+
+# Copy built dist into the deploy directory
+RUN cp -r packages/sandbox-server/dist /deploy/dist
+
+# ---------------------------------------------------------------------------
+# Stage 2: Runtime
+# ---------------------------------------------------------------------------
 FROM node:22-slim
 
 # Install minimal runtime dependencies
+# iproute2 is required by the OpenShell sandbox supervisor for network namespace creation
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     python3 \
+    python3-pip \
     tini \
+    curl \
+    iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create sandbox user (OpenShell convention: non-root execution)
+# --home is required so homedir() returns a real path; bootstrapPiExtensions()
+# writes config files to ~/.pi/ and will crash if home is /nonexistent.
 RUN addgroup --system --gid 1001 sandbox && \
-    adduser --system --uid 1001 --ingroup sandbox sandbox
+    adduser --system --uid 1001 --ingroup sandbox --home /home/sandbox sandbox && \
+    mkdir -p /home/sandbox/.pi && \
+    chown -R sandbox:sandbox /home/sandbox
 
 WORKDIR /app
 
-# Install NemoClaw and agent dependencies
-# These will be populated when pi-coding-agent packages are published
-COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && corepack prepare pnpm@10.32.1 --activate && \
-    pnpm install --frozen-lockfile --prod
+# Copy the self-contained deploy bundle (node_modules + dist, no symlinks)
+COPY --from=builder /deploy ./
 
-# Copy agent code and gRPC server
-COPY dist/ ./dist/
+# Copy sandbox policies (immutable, root-owned)
+COPY infra/openshell/policies/ ./policies/
+RUN chown root:root -R ./policies/ && chmod 444 -R ./policies/
 
-# Copy sandbox policies
-COPY policies/ ./policies/
+# Create workspace directory (writable, sandbox-owned)
+# This is where the user's files, code, and agent data live.
+# In per-user persistent sandboxes, this directory persists across sessions.
+# /sandbox is the OpenShell writable root where .env is uploaded.
+# .knowledge-base is pre-created so the agent prompt doesn't error on ls.
+RUN mkdir -p /workspace/.knowledge-base /tmp/agent /sandbox && \
+    chown -R sandbox:sandbox /workspace /tmp/agent /sandbox
 
-# Create workspace directory for agent file operations
-RUN mkdir -p /workspace /tmp/agent && \
-    chown -R sandbox:sandbox /workspace /tmp/agent /app
+# Copy entrypoint
+COPY infra/openshell/scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
+# Switch to sandbox user for runtime
 USER sandbox
 
-# gRPC server port for orchestrator communication
-EXPOSE 50052
+# HTTP server port for orchestrator communication
+EXPOSE 3000
 
+# Use tini as PID 1 for proper signal handling (same as NemoClaw)
 ENTRYPOINT ["tini", "--"]
-CMD ["node", "dist/index.js"]
+CMD ["/entrypoint.sh"]

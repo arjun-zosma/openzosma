@@ -1,0 +1,19 @@
+# Slack API access preset
+# Merge into default policy to allow agent to interact with Slack.
+slack:
+  name: slack
+  endpoints:
+    - host: "slack.com"
+      port: 443
+      tls: passthrough
+      enforcement: enforce
+    - host: "api.slack.com"
+      port: 443
+      tls: passthrough
+      enforcement: enforce
+    - host: "hooks.slack.com"
+      port: 443
+      tls: passthrough
+      enforcement: enforce
+  binaries:
+    - path: "/usr/local/bin/node"

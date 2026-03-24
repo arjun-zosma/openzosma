@@ -1,5 +1,5 @@
 {
-	"name": "@openzosma/orchestrator",
+	"name": "@openzosma/sandbox-server",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",
@@ -14,16 +14,15 @@
 	"scripts": {
 		"build": "tsc",
 		"check": "tsc --noEmit",
-		"dev": "tsx watch src/index.ts"
+		"start": "node dist/index.js"
 	},
 	"dependencies": {
+		"@hono/node-server": "^1.14.1",
 		"@openzosma/agents": "workspace:*",
-		"@openzosma/db": "workspace:*",
-		"@openzosma/sandbox": "workspace:*"
+		"hono": "^4.7.6"
 	},
 	"devDependencies": {
 		"@types/node": "^22.15.2",
-		"tsx": "^4.19.3",
 		"typescript": "^5.7.3"
 	}
 }

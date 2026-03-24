@@ -23,6 +23,7 @@
 		"@openzosma/auth": "workspace:*",
 		"@openzosma/db": "workspace:*",
 		"@openzosma/grpc": "workspace:*",
+		"@openzosma/orchestrator": "workspace:*",
 		"dotenv": "17.3.1",
 		"a2a-js": "^0.2.0",
 		"hono": "^4.7.6",
