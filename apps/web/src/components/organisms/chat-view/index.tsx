@@ -1,10 +1,11 @@
 "use client"
 
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/src/components/ai-elements/conversation"
+import { consumePendingMessage } from "@/src/lib/pending-message"
 import { IconSparkles } from "@tabler/icons-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useParams } from "next/navigation"
-import { useRef } from "react"
+import { useEffect, useRef } from "react"
 import ChatHeader from "./chat-header"
 import ChatMessage from "./chat-message"
 import useChatStream from "./hooks/use-chat-stream"
@@ -18,6 +19,14 @@ const ChatView = () => {
 	const { conversation, participants, messages, loading } = useConversation(conversationid)
 	const { streaming, streamingcontent, streamingtoolcalls, streamingsegments, streamingreasoning, handlesubmit } =
 		useChatStream(conversationid, conversation, participants)
+
+	useEffect(() => {
+		if (loading) return
+		const text = consumePendingMessage()
+		if (text) {
+			handlesubmit({ text, files: [] })
+		}
+	}, [loading, handlesubmit])
 
 	const hasmessages = messages.length > 0 || streaming
 
