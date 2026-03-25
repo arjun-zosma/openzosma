@@ -79,9 +79,9 @@ Open <http://localhost:3000>, sign up, and start a conversation.
 To run agent sessions inside isolated OpenShell sandboxes instead of in-process:
 
 ```bash
-# 1. Install the OpenShell CLI and create a cluster
+# 1. Install the OpenShell CLI and start the gateway (bootstraps a local K3s cluster)
 #    https://github.com/NVIDIA/OpenShell
-openshell cluster create
+openshell gateway start
 
 # 2. Build the sandbox image and import it into the K3s cluster
 ./scripts/build-sandbox.sh v0.1.0
