@@ -2,17 +2,18 @@
 
 How to run the OpenZosma platform locally. Two modes are available:
 
-- **Local mode** -- agent runs in-process inside the gateway. No OpenShell or Docker image needed. Good for development and testing.
-- **Orchestrator mode** -- agent runs inside per-user OpenShell sandboxes. Each user gets a persistent, isolated environment. This is the production configuration.
+* **Local mode** -- agent runs in-process inside the gateway. No OpenShell or Docker image needed. Good for development and testing.
+
+* **Orchestrator mode** -- agent runs inside per-user OpenShell sandboxes. Each user gets a persistent, isolated environment. This is the production configuration.
 
 ## Prerequisites
 
-| Dependency | Version | Notes |
-|---|---|---|
-| Node.js | 22+ | Runtime for all packages |
-| pnpm | 10+ | Workspace package manager (`corepack enable`) |
-| Docker | 24+ | Runs PostgreSQL, Valkey, RabbitMQ |
-| OpenShell CLI | latest | Only required for orchestrator mode |
+| Dependency    | Version | Notes                                         |
+| ------------- | ------- | --------------------------------------------- |
+| Node.js       | 22+     | Runtime for all packages                      |
+| pnpm          | 10+     | Workspace package manager (`corepack enable`) |
+| Docker        | 24+     | Runs PostgreSQL, Valkey, RabbitMQ             |
+| OpenShell CLI | latest  | Only required for orchestrator mode           |
 
 ## 1. Clone and Install
 
@@ -31,9 +32,12 @@ docker compose up -d
 ```
 
 This starts:
-- **PostgreSQL** on port 5432 (with pgvector)
-- **Valkey** on port 6379
-- **RabbitMQ** on ports 5672 (AMQP) and 15672 (management UI)
+
+* **PostgreSQL** on port 5432 (with pgvector)
+
+* **Valkey** on port 6379
+
+* **RabbitMQ** on ports 5672 (AMQP) and 15672 (management UI)
 
 ## 3. Configure Environment
 
@@ -44,9 +48,12 @@ cp .env.example .env.local
 ```
 
 **Required settings:**
-- `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` -- at least one LLM provider key
-- `OPENZOSMA_MODEL_PROVIDER` / `OPENZOSMA_MODEL_ID` -- which model to use (e.g. `openai` / `gpt-4o`)
-- `OPENZOSMA_SANDBOX_MODE` -- `local` or `orchestrator` (see sections below)
+
+* `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` -- at least one LLM provider key
+
+* `OPENZOSMA_MODEL_PROVIDER` / `OPENZOSMA_MODEL_ID` -- which model to use (e.g. `openai` / `gpt-4o`)
+
+* `OPENZOSMA_SANDBOX_MODE` -- `local` or `orchestrator` (see sections below)
 
 All other defaults work out of the box for local development.
 
@@ -85,8 +92,9 @@ pnpm --filter @openzosma/gateway run dev
 pnpm --filter web run dev
 ```
 
-- Gateway: http://localhost:4000
-- Web app: http://localhost:3000
+* Gateway: <http://localhost:4000>
+
+* Web app: <http://localhost:3000>
 
 In local mode, the agent runs in-process inside the gateway. No Docker image or OpenShell needed.
 
@@ -117,12 +125,12 @@ This starts a K3s cluster inside Docker. The container is named `openshell-clust
 A convenience script automates the Docker build and K3s import:
 
 ```bash
-chmod +x scripts/build-sandbox.sh
 ./scripts/build-sandbox.sh          # builds openzosma/sandbox-server:v0.1.0
 ./scripts/build-sandbox.sh v0.2.0   # or with a custom tag
 ```
 
 **What the script does:**
+
 1. `docker build -f infra/openshell/Dockerfile -t openzosma/sandbox-server:<tag> .` from repo root
 2. `docker save <image> | docker exec -i openshell-cluster-openshell ctr images import --all-platforms -`
 
@@ -149,6 +157,7 @@ pnpm --filter web run dev
 ```
 
 When a user sends their first message, the orchestrator automatically:
+
 1. Creates an OpenShell sandbox for the user
 2. Waits for the sandbox to reach Ready phase
 3. Sets up port forwarding
@@ -156,17 +165,21 @@ When a user sends their first message, the orchestrator automatically:
 5. Waits for the sandbox server to become healthy
 6. Proxies the message to the sandbox
 
-The first message takes ~30-40 seconds due to sandbox provisioning. Subsequent messages are fast since the sandbox persists.
+The first message takes \~30-40 seconds due to sandbox provisioning. Subsequent messages are fast since the sandbox persists.
 
 ## Rebuilding the Sandbox Image
 
 After changing any of these files, you must rebuild the image and re-import into K3s:
 
-- `infra/openshell/Dockerfile`
-- `infra/openshell/scripts/entrypoint.sh`
-- `infra/openshell/policies/default.yaml`
-- `packages/sandbox-server/src/**`
-- `packages/agents/src/**`
+* `infra/openshell/Dockerfile`
+
+* `infra/openshell/scripts/entrypoint.sh`
+
+* `infra/openshell/policies/default.yaml`
+
+* `packages/sandbox-server/src/**`
+
+* `packages/agents/src/**`
 
 ```bash
 ./scripts/build-sandbox.sh

@@ -79,16 +79,22 @@ Open <http://localhost:3000>, sign up, and start a conversation.
 To run agent sessions inside isolated OpenShell sandboxes instead of in-process:
 
 ```bash
-# 1. Install the OpenShell CLI (https://github.com/NVIDIA/OpenShell)
-# 2. Build the sandbox image
-docker build -f infra/openshell/Dockerfile -t openzosma/sandbox-server:latest .
+# 1. Install the OpenShell CLI and start the gateway (bootstraps a local K3s cluster)
+#    https://github.com/NVIDIA/OpenShell
+openshell gateway start
+
+# 2. Build the sandbox image and import it into the K3s cluster
+./scripts/build-sandbox.sh v0.1.0
 
 # 3. Set sandbox mode in .env.local
-echo 'OPENZOSMA_SANDBOX_MODE=orchestrator' >> .env.local
+OPENZOSMA_SANDBOX_MODE=orchestrator
+SANDBOX_IMAGE=openzosma/sandbox-server:v0.1.0
 
 # 4. Start the gateway (it will create sandboxes on demand)
 pnpm --filter @openzosma/gateway dev
 ```
+
+Use a versioned tag (e.g. `v0.1.0`), not `:latest`. K3s sets `imagePullPolicy: Always` for `:latest`, which causes `ImagePullBackOff` since the image is local, not on Docker Hub.
 
 See [infra/openshell/README.md](./infra/openshell/README.md) for sandbox image details and policy configuration.
 
@@ -110,8 +116,9 @@ Clients (Web, Mobile, WhatsApp, Slack, A2A agents)
 
 The gateway runs in two modes controlled by `OPENZOSMA_SANDBOX_MODE`:
 
-- **`local`** (default) -- pi-agent runs in-process inside the gateway. No OpenShell needed. Good for development.
-- **`orchestrator`** -- Each user gets a persistent OpenShell sandbox. The orchestrator (an in-process library, not a separate service) manages sandbox lifecycle and proxies messages to the sandbox-server via HTTP/SSE. Sandboxes are created on demand and suspended after idle timeout.
+* **`local`** (default) -- pi-agent runs in-process inside the gateway. No OpenShell needed. Good for development.
+
+* **`orchestrator`** -- Each user gets a persistent OpenShell sandbox. The orchestrator (an in-process library, not a separate service) manages sandbox lifecycle and proxies messages to the sandbox-server via HTTP/SSE. Sandboxes are created on demand and suspended after idle timeout.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 
@@ -140,15 +147,15 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 
 ## Repository Structure
 
-| Phase                                     | Description                                   | Duration  | Status                                              |
-| ----------------------------------------- | --------------------------------------------- | --------- | --------------------------------------------------- |
-| [Phase 1](./docs/PHASE-1-MULTITENANT.md)  | Multi-instance pi-agent refactor (in pi-mono) | 3-4 days  | Complete                                            |
-| [Phase 2](./docs/PHASE-2-MONOREPO.md)     | OpenZosma monorepo setup + DB schema + auth   | 1 week    | Complete                                            |
-| [Phase 3](./docs/PHASE-3-GATEWAY.md)      | API Gateway + A2A + auth                      | 1 week    | Complete (REST + A2A + WebSocket + auth)             |
-| [Phase 4](./docs/PHASE-4-ORCHESTRATOR.md) | Orchestrator + OpenShell sandbox integration  | 1.5 weeks | In progress (core infra done, integration pending)  |
-| [Phase 5](./docs/PHASE-5-ADAPTERS.md)     | Channel adapters (Slack, WhatsApp)            | 1 week    | Not started                                         |
-| [Phase 6](./docs/PHASE-6-SKILLS.md)       | Enterprise skills (database tool, reports)    | 2 weeks   | Not started                                         |
-| [Phase 7](./docs/PHASE-7-DASHBOARD.md)    | Web dashboard (Next.js)                       | 2 weeks   | In progress (MVP)                                   |
+| Phase                                     | Description                                   | Duration  | Status                                             |
+| ----------------------------------------- | --------------------------------------------- | --------- | -------------------------------------------------- |
+| [Phase 1](./docs/PHASE-1-MULTITENANT.md)  | Multi-instance pi-agent refactor (in pi-mono) | 3-4 days  | Complete                                           |
+| [Phase 2](./docs/PHASE-2-MONOREPO.md)     | OpenZosma monorepo setup + DB schema + auth   | 1 week    | Complete                                           |
+| [Phase 3](./docs/PHASE-3-GATEWAY.md)      | API Gateway + A2A + auth                      | 1 week    | Complete (REST + A2A + WebSocket + auth)           |
+| [Phase 4](./docs/PHASE-4-ORCHESTRATOR.md) | Orchestrator + OpenShell sandbox integration  | 1.5 weeks | In progress (core infra done, integration pending) |
+| [Phase 5](./docs/PHASE-5-ADAPTERS.md)     | Channel adapters (Slack, WhatsApp)            | 1 week    | Not started                                        |
+| [Phase 6](./docs/PHASE-6-SKILLS.md)       | Enterprise skills (database tool, reports)    | 2 weeks   | Not started                                        |
+| [Phase 7](./docs/PHASE-7-DASHBOARD.md)    | Web dashboard (Next.js)                       | 2 weeks   | In progress (MVP)                                  |
 
 **MVP (Phases 1-4):** \~4 weeks
 **Full platform (Phases 1-7):** \~10 weeks

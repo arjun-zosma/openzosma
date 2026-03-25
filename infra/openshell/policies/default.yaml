@@ -36,27 +36,79 @@ process:
   run_as_group: sandbox
 
 # ---------------------------------------------------------------------------
-# Network policy: catch-all HTTPS
+# Network policy: allowlist HTTPS
 #
-# The sandbox itself IS the security boundary (Landlock + network namespace).
-# Rather than maintaining a per-host allowlist, we allow all outbound HTTPS
-# from node so the agent can reach any API (LLM providers, npm, GitHub,
-# user-requested endpoints, etc.). Non-HTTPS traffic is denied by default.
-#
-# To tighten this later, replace the catch-all with per-host rules.
+# OpenShell's L7 validator requires specific host patterns (bare "*" is
+# rejected). Rules are grouped by function so they can be extended or
+# removed independently.
 # ---------------------------------------------------------------------------
 network_policies:
-  allow_all_https:
-    name: allow_all_https
+  llm_providers:
+    name: llm_providers
     endpoints:
-      - host: "*"
+      # Anthropic
+      - host: "api.anthropic.com"
+        port: 443
+        enforcement: enforce
+      # OpenAI
+      - host: "api.openai.com"
+        port: 443
+        enforcement: enforce
+      - host: "*.openai.com"
+        port: 443
+        enforcement: enforce
+      # Google Gemini
+      - host: "generativelanguage.googleapis.com"
+        port: 443
+        enforcement: enforce
+      # OpenRouter / local model proxies
+      - host: "openrouter.ai"
+        port: 443
+        enforcement: enforce
+    binaries:
+      - path: "/usr/local/bin/node"
+
+  package_registries:
+    name: package_registries
+    endpoints:
+      - host: "registry.npmjs.org"
+        port: 443
+        enforcement: enforce
+      - host: "*.npmjs.org"
+        port: 443
+        enforcement: enforce
+      - host: "pypi.org"
+        port: 443
+        enforcement: enforce
+      - host: "files.pythonhosted.org"
         port: 443
         enforcement: enforce
     binaries:
       - path: "/usr/local/bin/node"
       - path: "/usr/local/bin/npm"
       - path: "/usr/local/bin/npx"
-      - path: "/usr/bin/git"
       - path: "/usr/bin/python3"
       - path: "/usr/bin/pip3"
+
+  github:
+    name: github
+    endpoints:
+      - host: "github.com"
+        port: 443
+        enforcement: enforce
+      - host: "*.github.com"
+        port: 443
+        enforcement: enforce
+      - host: "raw.githubusercontent.com"
+        port: 443
+        enforcement: enforce
+      - host: "objects.githubusercontent.com"
+        port: 443
+        enforcement: enforce
+      - host: "api.github.com"
+        port: 443
+        enforcement: enforce
+    binaries:
+      - path: "/usr/bin/git"
+      - path: "/usr/local/bin/node"
       - path: "/usr/bin/curl"

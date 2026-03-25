@@ -70,7 +70,7 @@ export interface SandboxConfig {
 	/**
 	 * Command to run inside the sandbox (passed after `--`).
 	 * If not set, the sandbox runs `sleep infinity` by default.
-	 * Example: `["/entrypoint.sh"]`
+	 * Example: `["/app/entrypoint.sh"]`
 	 */
 	command?: string[]
 }

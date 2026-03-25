@@ -141,21 +141,25 @@ export class SandboxHttpClient {
 		const reader = body.getReader()
 		const decoder = new TextDecoder()
 		let buffer = ""
+		let currentData = ""
+		let chunkCount = 0
 
 		try {
 			while (true) {
 				if (signal?.aborted) break
 
 				const { done, value } = await reader.read()
-				if (done) break
+				if (done) {
+					break
+				}
 
-				buffer += decoder.decode(value, { stream: true })
+				chunkCount++
+				const raw = decoder.decode(value, { stream: true })
+				buffer += raw
 				const lines = buffer.split("\n")
 
 				// Keep the last incomplete line in the buffer
 				buffer = lines.pop() ?? ""
-
-				let currentData = ""
 
 				for (const line of lines) {
 					if (line.startsWith("data:")) {
@@ -165,8 +169,8 @@ export class SandboxHttpClient {
 						try {
 							const event = JSON.parse(currentData) as AgentStreamEvent
 							yield event
-						} catch {
-							// Skip malformed events
+						} catch (e) {
+							console.error(`[sandbox-http-client] parseSSE error: ${e instanceof Error ? e.message : String(e)}`)
 						}
 						currentData = ""
 					}

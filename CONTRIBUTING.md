@@ -4,10 +4,13 @@
 
 ### Prerequisites
 
-- [Node.js 22+](https://nodejs.org/) (see `.nvmrc` / `.node-version`)
-- [pnpm 9+](https://pnpm.io/)
-- Docker and Docker Compose (for PostgreSQL, Valkey, RabbitMQ)
-- [NemoClaw CLI](https://github.com/NVIDIA/NemoClaw) (for sandbox development, Phase 4+) -- only needed when running in orchestrator mode
+* [Node.js 22+](https://nodejs.org/) (see `.nvmrc` / `.node-version`)
+
+* [pnpm 9+](https://pnpm.io/)
+
+* Docker and Docker Compose (for PostgreSQL, Valkey, RabbitMQ)
+
+* [NemoClaw CLI](https://github.com/NVIDIA/NemoClaw) (for sandbox development, Phase 4+) -- only needed when running in orchestrator mode
 
 ### Getting Started
 
@@ -50,7 +53,7 @@ pnpm --filter @openzosma/gateway dev
 pnpm --filter @openzosma/web dev
 ```
 
-Open http://localhost:3000, sign up with email and password, and start a conversation.
+Open <http://localhost:3000>, sign up with email and password, and start a conversation.
 
 The gateway defaults to port 4000 (`GATEWAY_PORT`) and host 0.0.0.0 (`GATEWAY_HOST`). The dashboard connects to the gateway at `http://localhost:4000` by default (`NEXT_PUBLIC_GATEWAY_URL`).
 
@@ -59,7 +62,7 @@ The gateway defaults to port 4000 (`GATEWAY_PORT`) and host 0.0.0.0 (`GATEWAY_HO
 All migrations live in `packages/db/`. There are two separate migration systems:
 
 1. **`db-migrate`** -- manages `public` schema tables (gateway and web app tables)
-2. **`better-auth` CLI** -- manages `auth` schema tables (users, sessions, accounts, etc.)
+2. **`better-auth`** **CLI** -- manages `auth` schema tables (users, sessions, accounts, etc.)
 
 Both must be run before starting the application. **Order matters:** run `db:migrate` first, then `db:migrate:auth`.
 
@@ -107,8 +110,8 @@ Build individual services using multi-stage targets:
 # API Gateway
 docker build --target gateway -t openzosma-gateway .
 
-# Sandbox image (for OpenShell sandboxes)
-docker build -f infra/openshell/Dockerfile -t openzosma/sandbox-server:latest .
+# Sandbox image (build + import into K3s cluster)
+./scripts/build-sandbox.sh v0.1.0
 ```
 
 ### Environment Variables
@@ -175,53 +178,77 @@ ANTHROPIC_API_KEY=
 
 ### Code Style
 
-- TypeScript throughout
-- No `any` types unless absolutely necessary
-- No inline imports -- always standard top-level imports
-- No global/module-level mutable state
-- No ORM -- raw SQL via `pg`, migrations via `db-migrate`
-- Biome for linting and formatting (tabs, 120 line width, double quotes)
-- Run `pnpm run lint:fix` to auto-fix formatting issues
+* TypeScript throughout
+
+* No `any` types unless absolutely necessary
+
+* No inline imports -- always standard top-level imports
+
+* No global/module-level mutable state
+
+* No ORM -- raw SQL via `pg`, migrations via `db-migrate`
+
+* Biome for linting and formatting (tabs, 120 line width, double quotes)
+
+* Run `pnpm run lint:fix` to auto-fix formatting issues
 
 ### Database
 
-- Migrations live in `packages/db/migrations/` using `db-migrate` format (JS + sqls/)
-- Create new migration: `pnpm db:migrate:create -- <name>`
-- Run migrations: `pnpm db:migrate`
-- Rollback: `pnpm db:migrate:down`
-- Parameterized queries only (`$1`, `$2`, etc.), never string interpolation
+* Migrations live in `packages/db/migrations/` using `db-migrate` format (JS + sqls/)
+
+* Create new migration: `pnpm db:migrate:create -- <name>`
+
+* Run migrations: `pnpm db:migrate`
+
+* Rollback: `pnpm db:migrate:down`
+
+* Parameterized queries only (`$1`, `$2`, etc.), never string interpolation
 
 ### gRPC / Protobuf
 
 Proto definitions exist in `proto/` at repo root but are **not used at runtime**. The orchestrator communicates with sandboxes via HTTP/SSE. Stubs are generated and checked in for reference.
 
-- Generated TypeScript stubs go to `packages/grpc/src/generated/`
-- Regenerate after proto changes: `pnpm proto:generate`
-- Code generation uses `@protobuf-ts/plugin` via `npx protoc`
+* Generated TypeScript stubs go to `packages/grpc/src/generated/`
+
+* Regenerate after proto changes: `pnpm proto:generate`
+
+* Code generation uses `@protobuf-ts/plugin` via `npx protoc`
 
 ### Git
 
-- Branch naming: `feat/description`, `fix/description`, `refactor/description`
-- Commit format: `type(scope): description`
-  - Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
-  - Scopes: `gateway`, `orchestrator`, `sandbox`, `a2a`, `grpc`, `db`, `auth`, `adapters`, `skills`, `web`, `sdk`
-- Include `fixes #N` or `closes #N` in commit messages for related issues
-- Never force push to main
+* Branch naming: `feat/description`, `fix/description`, `refactor/description`
+
+* Commit format: `type(scope): description`
+
+  * Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
+
+  * Scopes: `gateway`, `orchestrator`, `sandbox`, `a2a`, `grpc`, `db`, `auth`, `adapters`, `skills`, `web`, `sdk`
+
+* Include `fixes #N` or `closes #N` in commit messages for related issues
+
+* Never force push to main
 
 ### Testing
 
-- Use Vitest for unit and integration tests
-- Test files live in `test/` directories alongside source, named `*.test.ts`
-- Run from package root: `cd packages/gateway && npx vitest --run`
-- Integration tests that need infrastructure should check for availability and skip gracefully
-- See [docs/TESTING.md](./docs/TESTING.md) for the full testing strategy
+* Use Vitest for unit and integration tests
+
+* Test files live in `test/` directories alongside source, named `*.test.ts`
+
+* Run from package root: `cd packages/gateway && npx vitest --run`
+
+* Integration tests that need infrastructure should check for availability and skip gracefully
+
+* See [docs/TESTING.md](./docs/TESTING.md) for the full testing strategy
 
 ### Pull Requests
 
-- One feature or fix per PR
-- Include tests for new functionality
-- All checks must pass before merge
-- PRs are reviewed, then merged to main
+* One feature or fix per PR
+
+* Include tests for new functionality
+
+* All checks must pass before merge
+
+* PRs are reviewed, then merged to main
 
 ## Project Layout
 

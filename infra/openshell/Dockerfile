@@ -35,6 +35,7 @@ RUN pnpm install --frozen-lockfile
 
 # Copy source and build
 COPY packages/agents/ packages/agents/
+COPY packages/memory/ packages/memory/
 COPY packages/sandbox-server/ packages/sandbox-server/
 
 RUN pnpm --filter @openzosma/agents run build
@@ -89,9 +90,10 @@ RUN chown root:root -R ./policies/ && chmod 444 -R ./policies/
 RUN mkdir -p /workspace/.knowledge-base /tmp/agent /sandbox && \
     chown -R sandbox:sandbox /workspace /tmp/agent /sandbox
 
-# Copy entrypoint
-COPY infra/openshell/scripts/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Copy entrypoint into /app/ which is already in the policy read_only allowlist.
+# Placing it at the filesystem root (/) would be blocked by Landlock.
+COPY infra/openshell/scripts/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 # Switch to sandbox user for runtime
 USER sandbox
@@ -101,4 +103,4 @@ EXPOSE 3000
 
 # Use tini as PID 1 for proper signal handling (same as NemoClaw)
 ENTRYPOINT ["tini", "--"]
-CMD ["/entrypoint.sh"]
+CMD ["/app/entrypoint.sh"]

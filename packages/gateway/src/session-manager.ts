@@ -101,11 +101,18 @@ export class SessionManager {
 				)
 			}
 
-			const orchSession = await this.orchestrator.createSession(userId, {
-				sessionId,
-				agentConfigId,
-				resolvedConfig,
-			})
+			let orchSession: Awaited<ReturnType<typeof this.orchestrator.createSession>>
+			try {
+				orchSession = await this.orchestrator.createSession(userId, {
+					sessionId,
+					agentConfigId,
+					resolvedConfig,
+				})
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err)
+				console.error(`[gateway] orchestrator.createSession threw: ${msg}`)
+				throw err
+			}
 
 			// Create a local Session object for gateway-level tracking
 			const session: Session = {

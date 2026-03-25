@@ -259,9 +259,7 @@ export class SandboxManager {
 	// -----------------------------------------------------------------------
 
 	private async ensureSandboxInternal(userId: string): Promise<SandboxState> {
-		// Check DB for existing record
 		const record = await userSandboxQueries.getByUserId(this.pool, userId)
-
 		if (record) {
 			return this.handleExistingRecord(userId, record)
 		}
@@ -357,8 +355,6 @@ export class SandboxManager {
 
 	private async createSandboxForRecord(userId: string, record: UserSandbox): Promise<SandboxState> {
 		const port = this.allocatePort()
-		console.log(`[orchestrator] Creating sandbox ${record.sandboxName} for user ${userId} (port ${port})`)
-
 		const config: SandboxConfig = {
 			image: this.config.sandboxImage,
 			// Resolve the policy path to absolute. If already absolute, use as-is.
@@ -368,10 +364,10 @@ export class SandboxManager {
 				? this.config.defaultPolicyPath
 				: resolve(findWorkspaceRoot(), this.config.defaultPolicyPath),
 			agentPort: port,
-			// Pass the port as an argument to the entrypoint so the sandbox-server
-			// listens on it. This avoids the timing issue with env injection
-			// (the server starts before injectEnv runs).
-			command: ["/entrypoint.sh", String(port)],
+			// Invoke via sh so it works even if the execute bit is missing.
+			// The entrypoint lives under /app/ which is in the policy read_only
+			// allowlist; placing it at / would be blocked by Landlock.
+			command: ["/bin/sh", "/app/entrypoint.sh", String(port)],
 		}
 
 		// Env vars to inject after the sandbox is running.

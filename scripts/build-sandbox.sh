@@ -8,7 +8,7 @@
 #
 # Prerequisites:
 #   - Docker must be running
-#   - OpenShell cluster must be running (openshell cluster create)
+#   - OpenShell gateway must be running (openshell gateway start)
 # =============================================================================
 set -euo pipefail
 
@@ -33,7 +33,7 @@ echo "[build-sandbox] Importing image into K3s cluster..."
 # Verify the K3s container is running
 if ! docker inspect "${K3S_CONTAINER}" >/dev/null 2>&1; then
   echo "[build-sandbox] ERROR: K3s container '${K3S_CONTAINER}' not found."
-  echo "[build-sandbox] Make sure OpenShell is running: openshell cluster create"
+  echo "[build-sandbox] Make sure OpenShell is running: openshell gateway start"
   exit 1
 fi
 

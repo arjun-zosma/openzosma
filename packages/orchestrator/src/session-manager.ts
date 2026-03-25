@@ -161,11 +161,18 @@ export class OrchestratorSessionManager {
 	): AsyncGenerator<AgentStreamEvent> {
 		// Auto-create session if it doesn't exist
 		if (!this.sessions.has(sessionId)) {
-			await this.createSession(userId, { sessionId })
+			try {
+				await this.createSession(userId, { sessionId })
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err)
+				yield { type: "error", error: message }
+				return
+			}
 		}
 
 		const session = this.sessions.get(sessionId)
 		if (!session) {
+			console.error(`[orchestrator] session ${sessionId} could not be initialized`)
 			yield { type: "error", error: `Session ${sessionId} could not be initialized` }
 			return
 		}
@@ -184,13 +191,16 @@ export class OrchestratorSessionManager {
 		}
 
 		// Proxy the SSE stream from the sandbox-server
+		let eventCount = 0
 		try {
 			for await (const event of client.sendMessage(sessionId, content, signal)) {
+				eventCount++
 				yield event
 			}
 		} catch (err) {
 			if (!signal?.aborted) {
 				const message = err instanceof Error ? err.message : "Unknown sandbox error"
+				console.error(`[orchestrator] sendMessage error: ${message}`)
 				yield { type: "error", error: message }
 			}
 		}

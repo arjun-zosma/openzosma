@@ -1,20 +1,13 @@
 "use client"
 
-import { QUERY_KEYS } from "@/src/utils/query-keys"
-import { useQuery } from "@tanstack/react-query"
+import useGetConversation from "@/src/hooks/chat/use-get-conversation"
 import { useMemo } from "react"
-import type { ChatAttachment, ChatMessage, ChatParticipant, ConversationData, FileArtifact } from "../types"
-
-type ConversationQueryData = {
-	conversation: ConversationData
-	participants: ChatParticipant[]
-	messages: ChatMessage[]
-}
+import type { FileArtifact } from "../types"
 
 /**
  * Aggregates artifacts from two sources:
  * 1. Real-time: artifacts accumulated from file_output events during streaming
- * 2. Persisted: messageattachments with type "artifact" from conversation data
+ * 2. Persisted: message attachments with type "artifact" from conversation data
  *
  * Deduplicates by filename, preferring the streaming version (more recent).
  */
@@ -26,9 +19,7 @@ const useSessionArtifacts = (
 	hasfiles: boolean
 	loading: boolean
 } => {
-	const { data, isLoading } = useQuery<ConversationQueryData>({
-		queryKey: [QUERY_KEYS.CONVERSATION, conversationid],
-	})
+	const { data, isLoading } = useGetConversation(conversationid)
 
 	const artifacts = useMemo(() => {
 		const seen = new Map<string, FileArtifact>()
