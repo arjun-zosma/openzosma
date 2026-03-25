@@ -1,14 +1,14 @@
 import { createHash, randomBytes } from "node:crypto"
 import { buildDefaultAgentCard } from "@openzosma/a2a"
+import type { Auth } from "@openzosma/auth"
+import type { Role } from "@openzosma/auth"
 import type { Pool } from "@openzosma/db"
 import { agentConfigQueries, apiKeyQueries } from "@openzosma/db"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { streamSSE } from "hono/streaming"
-import type { Auth } from "@openzosma/auth"
-import type { Role } from "@openzosma/auth"
-import { createAuthMiddleware, requirePermission } from "./middleware/auth.js"
 import { createPerAgentRouter } from "./a2a.js"
+import { createAuthMiddleware, requirePermission } from "./middleware/auth.js"
 import type { SessionManager } from "./session-manager.js"
 
 interface AppVariables {

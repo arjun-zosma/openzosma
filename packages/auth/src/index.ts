@@ -1,5 +1,5 @@
 // Auth
-import { createAuth } from "./auth.js"
+import type { createAuth } from "./auth.js"
 export { createAuth, createAuthFromEnv } from "./auth.js"
 export type { AuthConfig } from "./auth.js"
 

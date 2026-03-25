@@ -1,8 +1,8 @@
-import type { MiddlewareHandler } from "hono"
-import type { Pool } from "@openzosma/db"
 import type { Auth } from "@openzosma/auth"
-import { validateApiKey, hasPermission } from "@openzosma/auth"
+import { hasPermission, validateApiKey } from "@openzosma/auth"
 import type { Role } from "@openzosma/auth"
+import type { Pool } from "@openzosma/db"
+import type { MiddlewareHandler } from "hono"
 
 /**
  * Auth middleware for /api/v1/* routes.
