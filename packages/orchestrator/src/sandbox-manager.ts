@@ -259,7 +259,7 @@ export class SandboxManager {
 	// -----------------------------------------------------------------------
 
 	private async ensureSandboxInternal(userId: string): Promise<SandboxState> {
-		const record = await userSandboxQueries.getByUserId(this.pool, userId)		
+		const record = await userSandboxQueries.getByUserId(this.pool, userId)
 		if (record) {
 			return this.handleExistingRecord(userId, record)
 		}
