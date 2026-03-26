@@ -150,6 +150,27 @@ const KnowledgeBasePanel = () => {
 		[files, deleteEntry],
 	)
 
+	const handleMoveFile = useCallback(
+		async (itemId: string, newParentId: string | null) => {
+			const file = findFileById(files, itemId)
+			if (!file) return
+
+			const newPath = newParentId ? `${newParentId}/${file.name}` : file.name
+			if (newPath === itemId) return
+
+			await renameEntry.mutateAsync({ oldPath: itemId, newPath })
+
+			setContentCache((prev) => renameKeysInRecord(prev, itemId, newPath))
+
+			setSelectedFileId((prev) => {
+				if (prev === itemId) return newPath
+				if (prev?.startsWith(`${itemId}/`)) return newPath + prev.slice(itemId.length)
+				return prev
+			})
+		},
+		[files, renameEntry],
+	)
+
 	return (
 		<div className="h-full overflow-hidden rounded-lg border border-border bg-background">
 			<ResizablePanelGroup direction="horizontal">
@@ -163,6 +184,7 @@ const KnowledgeBasePanel = () => {
 						onCreateFolder={handleCreateFolder}
 						onRenameFile={handleRenameFile}
 						onDeleteFile={handleDeleteFile}
+						onMoveFile={handleMoveFile}
 					/>
 				</ResizablePanel>
 

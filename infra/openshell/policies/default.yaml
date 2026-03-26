@@ -89,6 +89,7 @@ network_policies:
       - path: "/usr/local/bin/npx"
       - path: "/usr/bin/python3"
       - path: "/usr/bin/pip3"
+      - path: "/usr/bin/pip"
 
   github:
     name: github
@@ -112,3 +113,4 @@ network_policies:
       - path: "/usr/bin/git"
       - path: "/usr/local/bin/node"
       - path: "/usr/bin/curl"
+      - path: "/usr/bin/wget"

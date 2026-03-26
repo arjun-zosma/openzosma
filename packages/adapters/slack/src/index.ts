@@ -1,7 +1,7 @@
-import { App, type SlackEventMiddlewareArgs, type AllMiddlewareArgs } from "@slack/bolt"
-import type { SessionManager } from "@openzosma/gateway/session-manager"
 import type { ChannelAdapter } from "@openzosma/gateway/adapters"
+import type { SessionManager } from "@openzosma/gateway/session-manager"
 import type { GatewayEvent } from "@openzosma/gateway/types"
+import { type AllMiddlewareArgs, App, type SlackEventMiddlewareArgs } from "@slack/bolt"
 
 export interface SlackAdapterConfig {
 	botToken: string
@@ -19,12 +19,10 @@ type MessageEvent = SlackEventMiddlewareArgs<"message"> & AllMiddlewareArgs
 export class SlackAdapter implements ChannelAdapter {
 	readonly name = "slack"
 	private app: App
-	private config: SlackAdapterConfig
 	private sessionManager: SessionManager | undefined
 	private sessionMap = new Map<string, string>()
 
 	constructor(config: SlackAdapterConfig) {
-		this.config = config
 		this.app = new App({
 			token: config.botToken,
 			appToken: config.appToken,
@@ -74,8 +72,8 @@ export class SlackAdapter implements ChannelAdapter {
 
 		for await (const event of events) {
 			const typed = event as GatewayEvent
-			if (typed.type === "message_update" && typed.content) {
-				fullResponse += typed.content
+			if (typed.type === "message_update" && typed.text) {
+				fullResponse += typed.text
 			}
 			if (typed.type === "error") {
 				await say({ text: `Error: ${typed.error ?? "unknown error"}`, thread_ts: threadTs })

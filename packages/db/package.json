@@ -20,6 +20,7 @@
 		"migrate:create": "db-migrate create --sql-file --migrations-dir migrations"
 	},
 	"dependencies": {
+		"@openzosma/logger": "workspace:*",
 		"db-migrate": "^0.11.14",
 		"db-migrate-pg": "^1.5.2",
 		"pg": "^8.13.3"

@@ -1,12 +1,15 @@
 import { type ChildProcess, execFile, spawn } from "node:child_process"
-import { mkdtempSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readdirSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { basename, join, relative } from "node:path"
 import { promisify } from "node:util"
+import { createLogger } from "@openzosma/logger"
 import { OpenShellCliError, SandboxNotFoundError, SandboxNotReadyError, SandboxTimeoutError } from "./errors.js"
 import type { ExecResult, SandboxConfig, SandboxInfo, SandboxPhase } from "./types.js"
 
 const execFileAsync = promisify(execFile)
+
+const log = createLogger({ component: "sandbox" })
 
 /** Default timeout for CLI commands (30 seconds). */
 const DEFAULT_CLI_TIMEOUT_MS = 30_000
@@ -218,16 +221,57 @@ export class OpenShellClient {
 	 * and preserves the local filename. To place a file at `/sandbox/.env`,
 	 * the local file must be named `.env` and `dest` must be `/sandbox/`.
 	 *
+	 * By default the CLI respects `.gitignore` rules, which means gitignored
+	 * paths (like `.knowledge-base/`) are silently skipped. Pass
+	 * `noGitIgnore: true` to disable this filtering and upload everything.
+	 *
 	 * @param name      Sandbox name.
 	 * @param localPath Path on the host to upload.
 	 * @param dest      Destination directory inside the sandbox (defaults to /sandbox).
+	 * @param opts      Upload options.
 	 */
-	async upload(name: string, localPath: string, dest?: string): Promise<void> {
-		const args = ["sandbox", "upload", name, localPath]
+	async upload(name: string, localPath: string, dest?: string, opts?: { noGitIgnore?: boolean }): Promise<void> {
+		const args = ["sandbox", "upload"]
+		if (opts?.noGitIgnore) {
+			args.push("--no-git-ignore")
+		}
+		args.push(name, localPath)
 		if (dest) {
 			args.push(dest)
 		}
 		await this.run(args, 60_000)
+	}
+
+	/**
+	 * Recursively upload a local directory into the sandbox.
+	 *
+	 * `openshell sandbox upload` only transfers individual files -- passing
+	 * a directory silently succeeds but uploads nothing.  This method walks
+	 * the local directory tree and uploads each file individually, preserving
+	 * the directory structure inside the sandbox.
+	 *
+	 * Example: `uploadDir("sb", "/host/.knowledge-base", "/workspace/")`
+	 * uploads each file in `.knowledge-base/` so they appear under
+	 * `/workspace/.knowledge-base/` in the sandbox.
+	 *
+	 * @param name      Sandbox name.
+	 * @param localDir  Local directory to upload.
+	 * @param dest      Parent directory inside the sandbox (the local dir's
+	 *                  basename is appended automatically).
+	 */
+	async uploadDir(name: string, localDir: string, dest: string): Promise<void> {
+		const dirName = basename(localDir)
+		const files = collectFiles(localDir)
+
+		for (const filePath of files) {
+			const rel = relative(localDir, filePath)
+			// Destination is: dest + dirName + relative path's directory
+			// e.g. /workspace/ + .knowledge-base/ + subdir/
+			const parts = rel.split("/")
+			const destDir = parts.length > 1 ? `${dest}${dirName}/${parts.slice(0, -1).join("/")}/` : `${dest}${dirName}/`
+
+			await this.upload(name, filePath, destDir, { noGitIgnore: true })
+		}
 	}
 
 	/**
@@ -407,7 +451,7 @@ export class OpenShellClient {
 				// Log entrypoint/CLI output for visibility
 				for (const line of chunk.split("\n")) {
 					if (line.trim()) {
-						console.log(`[openshell:bg] ${line}`)
+						log.debug(`[openshell:bg] ${line}`)
 					}
 				}
 			})
@@ -423,17 +467,14 @@ export class OpenShellClient {
 		}
 
 		child.on("error", (err) => {
-			console.error(`[openshell] Background spawn failed: ${err.message}`)
+			log.error("Background spawn failed", { error: err.message })
 		})
 
 		child.on("exit", (code, signal) => {
 			if (code !== null && code !== 0) {
-				console.error(
-					`[openshell] Background process exited with code ${code}`,
-					stderr ? `\nstderr: ${stderr.trim()}` : "",
-				)
+				log.error(`Background process exited with code ${code}`, stderr ? { stderr: stderr.trim() } : undefined)
 			} else if (signal) {
-				console.warn(`[openshell] Background process killed by signal ${signal}`)
+				log.warn(`Background process killed by signal ${signal}`)
 			}
 		})
 
@@ -540,4 +581,20 @@ function mapPhase(raw: string | undefined): SandboxPhase {
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Recursively collect all file paths under a directory.
+ */
+const collectFiles = (dir: string): string[] => {
+	const results: string[] = []
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		const full = join(dir, entry.name)
+		if (entry.isDirectory()) {
+			results.push(...collectFiles(full))
+		} else if (entry.isFile()) {
+			results.push(full)
+		}
+	}
+	return results
 }

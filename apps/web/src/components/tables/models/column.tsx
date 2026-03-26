@@ -72,7 +72,7 @@ export const modelsColumns: ColumnDef<ModelPreset>[] = [
 				<Switch
 					checked={row.original.is_enabled}
 					onCheckedChange={() => {
-						console.log("is_enabled changed", row.original.is_enabled)
+						// TODO: implement is_enabled toggle
 					}}
 				/>
 			)
@@ -100,7 +100,7 @@ export const modelsColumns: ColumnDef<ModelPreset>[] = [
 				<Switch
 					checked={row.original.show_in_ui}
 					onCheckedChange={() => {
-						console.log("show_in_ui changed", row.original.show_in_ui)
+						// TODO: implement show_in_ui toggle
 					}}
 				/>
 			)

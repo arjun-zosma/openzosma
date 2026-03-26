@@ -18,6 +18,7 @@
 	},
 	"dependencies": {
 		"@grpc/grpc-js": "^1.12.6",
+		"@openzosma/logger": "workspace:*",
 		"@protobuf-ts/runtime": "^2.9.6",
 		"@protobuf-ts/runtime-rpc": "^2.9.6",
 		"@protobuf-ts/grpc-transport": "^2.9.6"

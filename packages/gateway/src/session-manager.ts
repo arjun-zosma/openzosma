@@ -1,15 +1,18 @@
 import { randomUUID } from "node:crypto"
 import { EventEmitter } from "node:events"
-import { cpSync, existsSync, mkdirSync } from "node:fs"
+import { mkdirSync, symlinkSync } from "node:fs"
 import { join, resolve } from "node:path"
 import type { AgentProvider, AgentSession } from "@openzosma/agents"
 import { PiAgentProvider } from "@openzosma/agents"
 import type { Pool } from "@openzosma/db"
 import { agentConfigQueries } from "@openzosma/db"
-import type { OrchestratorSessionManager } from "@openzosma/orchestrator"
+import { createLogger } from "@openzosma/logger"
+import type { KBFileEntry, OrchestratorSessionManager } from "@openzosma/orchestrator"
 import { ArtifactManager } from "./artifact-manager.js"
 import { createSnapshot, detectChanges } from "./file-scanner.js"
 import type { FileArtifact, GatewayEvent, Session, SessionMessage } from "./types.js"
+
+const log = createLogger({ component: "gateway" })
 
 /**
  * Per-session state holding the agent session and gateway-level metadata.
@@ -110,7 +113,7 @@ export class SessionManager {
 				})
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err)
-				console.error(`[gateway] orchestrator.createSession threw: ${msg}`)
+				log.error("orchestrator.createSession threw", { error: msg })
 				throw err
 			}
 
@@ -148,10 +151,11 @@ export class SessionManager {
 		const memoryKey = agentConfigId ?? "default"
 		const memoryDir = join(workspaceRoot, "agents", memoryKey, "memory")
 		mkdirSync(memoryDir, { recursive: true })
-		const kbRoot = resolve(process.env.KNOWLEDGE_BASE_PATH ?? join(process.cwd(), "../../.knowledge-base"))
-		if (existsSync(kbRoot)) {
-			cpSync(kbRoot, join(sessionDir, ".knowledge-base"), { recursive: true })
-		}
+		// Symlink the knowledge base into the session directory so that agent
+		// edits are immediately visible in the dashboard and vice-versa.
+		const kbRoot = resolve(process.env.KNOWLEDGE_BASE_PATH || join(process.cwd(), "../../.knowledge-base"))
+		mkdirSync(kbRoot, { recursive: true })
+		symlinkSync(kbRoot, join(sessionDir, ".knowledge-base"))
 
 		let agentConfig: { provider?: string; model?: string; systemPrompt?: string; toolsEnabled?: string[] } = {}
 		if (resolvedConfig) {
@@ -210,6 +214,105 @@ export class SessionManager {
 		this.emitters.delete(id)
 		this.artifactManager.deleteArtifacts(id)
 		return this.sessions.delete(id)
+	}
+
+	/**
+	 * Destroy the sandbox for a user.
+	 *
+	 * Only meaningful in orchestrator mode. Delegates to
+	 * OrchestratorSessionManager.destroyUserSandbox(), which tears down
+	 * the OpenShell pod, removes the DB record, and clears session state.
+	 * The next request from this user will create a fresh sandbox.
+	 *
+	 * In local mode this is a no-op (returns false).
+	 */
+	async destroySandbox(userId: string): Promise<boolean> {
+		if (!this.orchestrator) {
+			return false
+		}
+
+		// Remove local gateway session state for this user
+		for (const [id, state] of this.sessions) {
+			if (state.session.messages.length >= 0) {
+				// We don't have userId on SessionState, so we clear all sessions
+				// that the orchestrator also tracks for this user.
+				const orchSession = this.orchestrator.getSession(id)
+				if (orchSession && orchSession.userId === userId) {
+					this.emitters.delete(id)
+					this.artifactManager.deleteArtifacts(id)
+					this.sessions.delete(id)
+				}
+			}
+		}
+
+		await this.orchestrator.destroyUserSandbox(userId)
+		return true
+	}
+
+	/**
+	 * Get sandbox info for a user.
+	 *
+	 * Returns the sandbox DB record in orchestrator mode, or null in local mode.
+	 */
+	async getSandboxInfo(userId: string): Promise<{
+		sandboxName: string
+		status: string
+		createdAt: string
+		lastActiveAt: string
+	} | null> {
+		if (!this.orchestrator) {
+			return null
+		}
+
+		const record = await this.orchestrator.getUserSandboxInfo(userId)
+		if (!record) {
+			return null
+		}
+
+		return {
+			sandboxName: record.sandboxName,
+			status: record.status,
+			createdAt: record.createdAt.toISOString(),
+			lastActiveAt: record.lastActiveAt.toISOString(),
+		}
+	}
+
+	// -----------------------------------------------------------------------
+	// Knowledge base sync
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Push a file to the user's sandbox knowledge base.
+	 *
+	 * In orchestrator mode, delegates to OrchestratorSessionManager.pushKBFile().
+	 * In local mode, this is a no-op (symlinks handle sync automatically).
+	 */
+	async pushKBFile(userId: string, path: string, content: string): Promise<void> {
+		if (!this.orchestrator) return
+		await this.orchestrator.pushKBFile(userId, path, content)
+	}
+
+	/**
+	 * Delete a file from the user's sandbox knowledge base.
+	 *
+	 * In orchestrator mode, delegates to OrchestratorSessionManager.deleteKBFile().
+	 * In local mode, this is a no-op (symlinks handle sync automatically).
+	 */
+	async deleteKBFile(userId: string, path: string): Promise<void> {
+		if (!this.orchestrator) return
+		await this.orchestrator.deleteKBFile(userId, path)
+	}
+
+	/**
+	 * Pull all KB files from the user's sandbox.
+	 *
+	 * In orchestrator mode, returns files from the sandbox's .knowledge-base/.
+	 * In local mode, returns an empty array (symlinks mean the files are
+	 * already on the local filesystem).
+	 */
+	async pullKB(userId: string): Promise<KBFileEntry[]> {
+		if (!this.orchestrator) return []
+		return this.orchestrator.pullKB(userId)
 	}
 
 	/**

@@ -21,8 +21,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ setModel }) => {
 
 	const { data } = useGetModels()
 
-	console.log(data)
-
 	const models = [
 		{ value: "auto", label: "Auto" },
 		{ value: "agent", label: "Agent" },

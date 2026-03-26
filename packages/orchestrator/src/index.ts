@@ -26,5 +26,7 @@ export type {
 	SandboxCreateSessionResponse,
 	SandboxSessionInfo,
 	SandboxSessionListResponse,
+	KBFileEntry,
+	KBListResponse,
 } from "./types.js"
 export { DEFAULT_CONFIG } from "./types.js"

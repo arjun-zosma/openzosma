@@ -17,6 +17,7 @@
 		"test": "vitest --run"
 	},
 	"dependencies": {
+		"@openzosma/logger": "workspace:*",
 		"pi-memory": "^0.3.6",
 		"pi-extension-observational-memory": "^0.1.3"
 	},

@@ -13,11 +13,13 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
 		{ resource: "connections", actions: ["read", "write", "delete"] },
 		{ resource: "settings", actions: ["read", "write"] },
 		{ resource: "api_keys", actions: ["read", "write", "delete"] },
+		{ resource: "sandboxes", actions: ["read", "delete"] },
 		{ resource: "usage", actions: ["read"] },
 	],
 	member: [
 		{ resource: "sessions", actions: ["read", "write"] },
 		{ resource: "agent_configs", actions: ["read"] },
+		{ resource: "sandboxes", actions: ["read", "delete"] },
 		{ resource: "usage", actions: ["read"] },
 	],
 }

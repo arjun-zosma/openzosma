@@ -202,6 +202,16 @@ openzosma/
   docs/                   Implementation plans and design docs
 ```
 
+## Contributors
+
+<a href="https://github.com/zosmaai/openzosma/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=zosmaai/openzosma" alt="Contributors" />
+</a>
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=zosmaai/openzosma&type=Date)](https://star-history.com/#zosmaai/openzosma&Date)
+
 ## License
 
 [Apache License 2.0](./LICENSE)

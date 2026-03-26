@@ -25,6 +25,7 @@
 		"@aliou/pi-guardrails": "^0.9.5",
 		"@mariozechner/pi-ai": "^0.61.0",
 		"@mariozechner/pi-coding-agent": "^0.61.0",
+		"@openzosma/logger": "workspace:*",
 		"@openzosma/memory": "workspace:*",
 		"@sinclair/typebox": "^0.34.48",
 		"dotenv": "17.3.1",

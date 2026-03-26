@@ -2,11 +2,14 @@ import "dotenv/config"
 import { serve } from "@hono/node-server"
 import { createAuthFromEnv } from "@openzosma/auth"
 import { createPool } from "@openzosma/db"
+import { createLogger } from "@openzosma/logger"
 import { WebSocketServer } from "ws"
 import { initAdapters } from "./adapters.js"
 import { createApp } from "./app.js"
 import { SessionManager } from "./session-manager.js"
 import { handleWebSocket } from "./ws.js"
+
+const log = createLogger({ component: "gateway" })
 
 const PORT = Number(process.env.GATEWAY_PORT) || 4000
 const HOST = process.env.GATEWAY_HOST || "0.0.0.0"
@@ -31,11 +34,11 @@ async function createSessionManager(): Promise<SessionManager> {
 		const sandboxManager = new SandboxManager(pool, { config })
 		const orchestrator = new OrchestratorSessionManager(pool, sandboxManager)
 
-		console.log("Sandbox mode: orchestrator (per-user OpenShell sandboxes)")
+		log.info("Sandbox mode: orchestrator (per-user OpenShell sandboxes)")
 		return new SessionManager({ pool, orchestrator })
 	}
 
-	console.log("Sandbox mode: local (in-process pi-agent)")
+	log.info("Sandbox mode: local (in-process pi-agent)")
 	return new SessionManager({ pool })
 }
 
@@ -44,7 +47,7 @@ const auth = pool ? createAuthFromEnv() : undefined
 const app = createApp(sessionManager, pool, auth)
 
 const server = serve({ fetch: app.fetch, port: PORT, hostname: HOST }, () => {
-	console.log(`Gateway listening on ${HOST}:${PORT}`)
+	log.info(`Gateway listening on ${HOST}:${PORT}`)
 })
 
 // Attach WebSocket server using noServer mode

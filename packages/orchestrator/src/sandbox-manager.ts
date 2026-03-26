@@ -3,12 +3,15 @@ import { dirname, isAbsolute, join, resolve } from "node:path"
 import type { Pool } from "@openzosma/db"
 import { userSandboxQueries } from "@openzosma/db"
 import type { UserSandbox } from "@openzosma/db"
+import { createLogger } from "@openzosma/logger"
 import { OpenShellClient } from "@openzosma/sandbox"
 import { SandboxNotFoundError, SandboxNotReadyError } from "@openzosma/sandbox"
 import type { SandboxConfig } from "@openzosma/sandbox"
 import { SandboxHttpClient } from "./sandbox-http-client.js"
 import type { OrchestratorConfig, SandboxState } from "./types.js"
 import { DEFAULT_CONFIG } from "./types.js"
+
+const log = createLogger({ component: "orchestrator" })
 
 /**
  * Find the monorepo root by walking up from cwd looking for pnpm-workspace.yaml.
@@ -407,29 +410,44 @@ export class SandboxManager {
 		try {
 			// create() with a command spawns the CLI in the background and polls
 			// waitReady() internally, returning once the sandbox is Ready.
-			console.log(`[orchestrator] Creating OpenShell sandbox ${record.sandboxName}...`)
+			log.info("Creating OpenShell sandbox", { sandbox: record.sandboxName })
 			const info = await this.openshell.create(record.sandboxName, config)
-			console.log(`[orchestrator] Sandbox ${record.sandboxName} ready (phase: ${info.phase})`)
+			log.info("Sandbox ready", { sandbox: record.sandboxName, phase: info.phase })
 
 			// Start port forwarding so the orchestrator can reach the sandbox-server.
 			// The local and remote port must be the same (OpenShell CLI constraint).
-			console.log(`[orchestrator] Starting port forward ${port} -> ${record.sandboxName}:${port}`)
+			log.info("Starting port forward", { port, sandbox: record.sandboxName })
 			await this.openshell.forwardStart(record.sandboxName, port)
 
 			// Inject environment variables into the running sandbox.
 			// This MUST succeed -- the entrypoint waits for /sandbox/.env
 			// before starting the server. If injection fails, the sandbox
 			// will hang for 120s then start without LLM keys.
-			console.log(`[orchestrator] Injecting .env into ${record.sandboxName} (${Object.keys(sandboxEnv).length} vars)`)
+			log.info("Injecting .env", { sandbox: record.sandboxName, varCount: Object.keys(sandboxEnv).length })
 			await this.openshell.injectEnv(record.sandboxName, sandboxEnv)
-			console.log("[orchestrator] .env injected successfully")
+			log.info(".env injected successfully")
+
+			// Upload knowledge base content into the sandbox so the agent can
+			// access KB files the user created via the dashboard.  This is
+			// best-effort -- the sandbox still functions without KB content.
+			const kbRoot = resolve(process.env.KNOWLEDGE_BASE_PATH || join(findWorkspaceRoot(), ".knowledge-base"))
+			if (existsSync(kbRoot)) {
+				try {
+					log.info("Uploading knowledge base", { from: kbRoot, sandbox: record.sandboxName })
+					await this.openshell.uploadDir(record.sandboxName, kbRoot, "/workspace/")
+					log.info("Knowledge base uploaded successfully")
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err)
+					log.warn("Failed to upload knowledge base (non-fatal)", { error: msg })
+				}
+			}
 
 			// Wait for the sandbox-server to become healthy. After env
 			// injection the entrypoint sources .env and starts Node. We
 			// poll the /health endpoint until it responds (or timeout).
-			console.log(`[orchestrator] Waiting for sandbox-server health on port ${port}...`)
+			log.info("Waiting for sandbox-server health", { port })
 			await this.waitForHealthy(record.sandboxName, port, 60_000)
-			console.log(`[orchestrator] Sandbox ${record.sandboxName} is healthy`)
+			log.info("Sandbox is healthy", { sandbox: record.sandboxName })
 
 			const state: SandboxState = {
 				userId,
@@ -455,7 +473,7 @@ export class SandboxManager {
 			return state
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err)
-			console.error(`[orchestrator] Sandbox ${record.sandboxName} creation failed: ${message}`)
+			log.error("Sandbox creation failed", { sandbox: record.sandboxName, error: message })
 			this.releasePort(port)
 			await userSandboxQueries.updateStatus(this.pool, record.id, "error")
 			throw err

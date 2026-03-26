@@ -19,6 +19,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu"
 import { Input } from "@/src/components/ui/input"
+import { cn } from "@/src/lib/utils"
 import type { KBFile } from "@/src/services/knowledge-base.services"
 import { FilePlus, FileText, FolderPlus, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
@@ -34,6 +35,7 @@ interface FileSidebarProps {
 	onCreateFolder: (name: string, parentId?: string | null) => void
 	onRenameFile: (id: string, newName: string) => void
 	onDeleteFile: (id: string) => void
+	onMoveFile: (itemId: string, newParentId: string | null) => void
 }
 
 function InlineInput({
@@ -93,10 +95,12 @@ export function FileSidebar({
 	onCreateFolder,
 	onRenameFile,
 	onDeleteFile,
+	onMoveFile,
 }: FileSidebarProps) {
 	const [creating, setCreating] = useState<{ type: "file" | "folder"; parentId?: string | null } | null>(null)
 	const [renaming, setRenaming] = useState<string | null>(null)
 	const [deleteTarget, setDeleteTarget] = useState<KBFile | null>(null)
+	const [dragOverId, setDragOverId] = useState<string | null>(null)
 
 	const toTreeElements = (items: KBFile[]): TreeViewElement[] =>
 		items.map((item) => ({
@@ -182,6 +186,62 @@ export function FileSidebar({
 		</DropdownMenu>
 	)
 
+	const handleDragStart = (e: React.DragEvent, itemId: string) => {
+		e.dataTransfer.setData("text/plain", itemId)
+		e.dataTransfer.effectAllowed = "move"
+	}
+
+	const handleDragOver = (e: React.DragEvent, targetId: string | null) => {
+		e.preventDefault()
+		e.stopPropagation()
+		e.dataTransfer.dropEffect = "move"
+		setDragOverId(targetId)
+	}
+
+	const handleDragLeave = (e: React.DragEvent) => {
+		e.preventDefault()
+		// Only clear if we actually left (not entering a child)
+		const relatedTarget = e.relatedTarget as HTMLElement | null
+		if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
+			setDragOverId(null)
+		}
+	}
+
+	const handleDrop = (e: React.DragEvent, targetParentId: string | null) => {
+		e.preventDefault()
+		e.stopPropagation()
+		setDragOverId(null)
+
+		const draggedId = e.dataTransfer.getData("text/plain")
+		if (!draggedId) return
+
+		// Don't drop onto itself
+		if (draggedId === targetParentId) return
+
+		// Don't drop into a descendant of the dragged item
+		if (targetParentId?.startsWith(`${draggedId}/`)) return
+
+		// Check current parent -- if it's the same, skip
+		const parentMap = buildParentMap(files)
+		const currentParent = parentMap.get(draggedId) ?? null
+		if (currentParent === targetParentId) return
+
+		onMoveFile(draggedId, targetParentId)
+	}
+
+	const buildParentMap = (items: KBFile[], parentId: string | null = null): Map<string, string | null> => {
+		const map = new Map<string, string | null>()
+		for (const item of items) {
+			map.set(item.id, parentId)
+			if (item.children) {
+				for (const [k, v] of buildParentMap(item.children, item.id)) {
+					map.set(k, v)
+				}
+			}
+		}
+		return map
+	}
+
 	const renderFileItems = (items: KBFile[]): React.ReactNode =>
 		items.map((item) => {
 			if (renaming === item.id) {
@@ -201,28 +261,43 @@ export function FileSidebar({
 
 			if (item.type === "folder") {
 				return (
-					<Folder key={item.id} value={item.id} element={item.name}>
-						{item.children && renderFileItems(item.children)}
-						{creating && creating.parentId === item.id && (
-							<InlineInput
-								placeholder={creating.type === "file" ? "Filename.md" : "Folder name"}
-								onSubmit={(name) => {
-									if (creating.type === "file") {
-										onCreateFile(name.endsWith(".md") ? name : `${name}.md`, item.id)
-									} else {
-										onCreateFolder(name, item.id)
-									}
-									setCreating(null)
-								}}
-								onCancel={() => setCreating(null)}
-							/>
-						)}
-					</Folder>
+					<div
+						key={item.id}
+						draggable
+						onDragStart={(e) => handleDragStart(e, item.id)}
+						onDragOver={(e) => handleDragOver(e, item.id)}
+						onDragLeave={handleDragLeave}
+						onDrop={(e) => handleDrop(e, item.id)}
+						className={cn("rounded-md transition-colors", dragOverId === item.id && "bg-accent/50 ring-1 ring-accent")}
+					>
+						<Folder key={item.id} value={item.id} element={item.name} actions={renderContextMenu(item)}>
+							{item.children && renderFileItems(item.children)}
+							{creating && creating.parentId === item.id && (
+								<InlineInput
+									placeholder={creating.type === "file" ? "Filename.md" : "Folder name"}
+									onSubmit={(name) => {
+										if (creating.type === "file") {
+											onCreateFile(name.endsWith(".md") ? name : `${name}.md`, item.id)
+										} else {
+											onCreateFolder(name, item.id)
+										}
+										setCreating(null)
+									}}
+									onCancel={() => setCreating(null)}
+								/>
+							)}
+						</Folder>
+					</div>
 				)
 			}
 
 			return (
-				<div key={item.id} className="group flex items-center">
+				<div
+					key={item.id}
+					className="group flex items-center"
+					draggable
+					onDragStart={(e) => handleDragStart(e, item.id)}
+				>
 					<File
 						value={item.id}
 						handleSelect={() => onSelectFile(item.id)}
@@ -262,7 +337,19 @@ export function FileSidebar({
 				</div>
 			</div>
 
-			<div className="flex-1 overflow-auto py-2">
+			<div
+				className={cn("flex-1 overflow-auto py-2 transition-colors", dragOverId === "__root__" && "bg-accent/30")}
+				onDragOver={(e) => {
+					// Only highlight root when not over a folder
+					const target = e.target as HTMLElement
+					if (target === e.currentTarget || target.closest("[data-root-drop]")) {
+						handleDragOver(e, "__root__")
+					}
+				}}
+				onDragLeave={handleDragLeave}
+				onDrop={(e) => handleDrop(e, null)}
+				data-root-drop
+			>
 				{loading ? (
 					<div className="flex items-center justify-center py-8 text-muted-foreground">
 						<Loader2 className="size-4 animate-spin" />

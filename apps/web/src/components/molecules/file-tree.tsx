@@ -262,32 +262,37 @@ type FolderProps = {
 	element: string
 	isSelectable?: boolean
 	isSelect?: boolean
+	/** Optional action elements (e.g. context menu) rendered at the end of the folder trigger row. */
+	actions?: React.ReactNode
 } & React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>
 
 const Folder = forwardRef<HTMLDivElement, FolderProps & React.HTMLAttributes<HTMLDivElement>>(
-	({ className, element, value, isSelectable = true, isSelect, children, ...props }, ref) => {
+	({ className, element, value, isSelectable = true, isSelect, actions, children, ...props }, ref) => {
 		const { direction, handleExpand, expandedItems, indicator, selectedId, selectItem, openIcon, closeIcon } = useTree()
 		const isSelected = isSelect ?? selectedId === value
 
 		return (
 			<AccordionPrimitive.Item ref={ref} {...props} value={value} className="relative h-full overflow-hidden">
-				<AccordionPrimitive.Trigger
-					className={cn("flex items-center gap-1 rounded-md text-sm", className, {
-						"bg-muted rounded-md": isSelected && isSelectable,
-						"cursor-pointer": isSelectable,
-						"cursor-not-allowed opacity-50": !isSelectable,
-					})}
-					disabled={!isSelectable}
-					onClick={() => {
-						selectItem(value)
-						handleExpand(value)
-					}}
-				>
-					{expandedItems?.includes(value)
-						? (openIcon ?? <FolderOpenIcon className="size-4" />)
-						: (closeIcon ?? <FolderIcon className="size-4" />)}
-					<p className="text-base">{element}</p>
-				</AccordionPrimitive.Trigger>
+				<div className="group flex items-center">
+					<AccordionPrimitive.Trigger
+						className={cn("flex flex-1 items-center gap-1 rounded-md text-sm", className, {
+							"bg-muted rounded-md": isSelected && isSelectable,
+							"cursor-pointer": isSelectable,
+							"cursor-not-allowed opacity-50": !isSelectable,
+						})}
+						disabled={!isSelectable}
+						onClick={() => {
+							selectItem(value)
+							handleExpand(value)
+						}}
+					>
+						{expandedItems?.includes(value)
+							? (openIcon ?? <FolderOpenIcon className="size-4" />)
+							: (closeIcon ?? <FolderIcon className="size-4" />)}
+						<p className="text-base">{element}</p>
+					</AccordionPrimitive.Trigger>
+					{actions}
+				</div>
 				<AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down relative h-full overflow-hidden text-sm">
 					{element && indicator && <TreeIndicator aria-hidden="true" />}
 					<AccordionPrimitive.Root

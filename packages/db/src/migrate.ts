@@ -2,9 +2,12 @@ import { execSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { createLogger } from "@openzosma/logger"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+
+const log = createLogger({ component: "db" })
 
 /**
  * Load an env file into process.env. Supports KEY=VALUE lines,
@@ -28,7 +31,7 @@ function loadEnvFile(filePath: string): void {
 				process.env[key] = value
 			}
 		}
-		console.log(`Loaded env file: ${filePath}`)
+		log.info(`Loaded env file: ${filePath}`)
 	} catch {
 		// Silently ignore if file doesn't exist
 	}
@@ -76,8 +79,8 @@ try {
 		env: process.env,
 		cwd: pkgDir,
 	})
-	console.log(`Migrations ${direction} completed.`)
+	log.info(`Migrations ${direction} completed.`)
 } catch {
-	console.error(`Migration ${direction} failed.`)
+	log.error(`Migration ${direction} failed.`)
 	process.exit(1)
 }

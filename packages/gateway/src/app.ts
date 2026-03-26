@@ -4,12 +4,15 @@ import type { Auth } from "@openzosma/auth"
 import type { Role } from "@openzosma/auth"
 import type { Pool } from "@openzosma/db"
 import { agentConfigQueries, apiKeyQueries } from "@openzosma/db"
+import { createLogger } from "@openzosma/logger"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { streamSSE } from "hono/streaming"
 import { createPerAgentRouter } from "./a2a.js"
 import { createAuthMiddleware, requirePermission } from "./middleware/auth.js"
 import type { SessionManager } from "./session-manager.js"
+
+const log = createLogger({ component: "gateway" })
 
 interface AppVariables {
 	userId: string
@@ -173,6 +176,102 @@ export const createApp = (sessionManager: SessionManager, pool?: Pool, auth?: Au
 				await stream.writeSSE({ data: JSON.stringify(event) })
 			}
 		})
+	})
+
+	// -----------------------------------------------------------------------
+	// Sandbox management routes
+	// -----------------------------------------------------------------------
+
+	app.get("/api/v1/sandbox", requirePermission("sandboxes", "read"), async (c) => {
+		const userId = c.get("userId") as string | undefined
+		if (!userId) {
+			return c.json({ error: "userId is required (session auth only)" }, 400)
+		}
+
+		const info = await sessionManager.getSandboxInfo(userId)
+		if (!info) {
+			return c.json({ sandbox: null })
+		}
+
+		return c.json({ sandbox: info })
+	})
+
+	app.delete("/api/v1/sandbox", requirePermission("sandboxes", "delete"), async (c) => {
+		const userId = c.get("userId") as string | undefined
+		if (!userId) {
+			return c.json({ error: "userId is required (session auth only)" }, 400)
+		}
+
+		const destroyed = await sessionManager.destroySandbox(userId)
+		if (!destroyed) {
+			return c.json({ error: "Sandbox destruction is only available in orchestrator mode" }, 400)
+		}
+
+		return c.json({ ok: true })
+	})
+
+	// -----------------------------------------------------------------------
+	// Knowledge base sync routes
+	// -----------------------------------------------------------------------
+
+	/**
+	 * POST /api/v1/kb/sync -- push a file change to the user's sandbox KB.
+	 *
+	 * Body: { action: "write" | "delete", path: string, content?: string }
+	 *
+	 * Used by the Next.js dashboard to sync KB edits into the running sandbox.
+	 */
+	app.post("/api/v1/kb/sync", requirePermission("sessions", "write"), async (c) => {
+		const userId = c.get("userId") as string | undefined
+		if (!userId) {
+			return c.json({ error: { code: "AUTH_REQUIRED", message: "userId is required" } }, 400)
+		}
+
+		const body = await c.req.json<{ action: string; path: string; content?: string }>()
+		if (!body.action || !body.path) {
+			return c.json({ error: { code: "INVALID_REQUEST", message: "action and path are required" } }, 400)
+		}
+
+		try {
+			if (body.action === "write") {
+				if (typeof body.content !== "string") {
+					return c.json({ error: { code: "INVALID_REQUEST", message: "content is required for write action" } }, 400)
+				}
+				await sessionManager.pushKBFile(userId, body.path, body.content)
+			} else if (body.action === "delete") {
+				await sessionManager.deleteKBFile(userId, body.path)
+			} else {
+				return c.json({ error: { code: "INVALID_REQUEST", message: `Unknown action: ${body.action}` } }, 400)
+			}
+
+			return c.json({ ok: true })
+		} catch (err) {
+			const message = err instanceof Error ? err.message : "Unknown error"
+			log.error("KB sync failed", { error: message })
+			return c.json({ error: { code: "SYNC_FAILED", message } }, 500)
+		}
+	})
+
+	/**
+	 * GET /api/v1/kb/pull -- pull all KB files from the user's sandbox.
+	 *
+	 * Returns { files: KBFileEntry[] } with content for each file.
+	 * Used by the "Sync from Agent" button in the dashboard.
+	 */
+	app.get("/api/v1/kb/pull", requirePermission("sessions", "read"), async (c) => {
+		const userId = c.get("userId") as string | undefined
+		if (!userId) {
+			return c.json({ error: { code: "AUTH_REQUIRED", message: "userId is required" } }, 400)
+		}
+
+		try {
+			const files = await sessionManager.pullKB(userId)
+			return c.json({ files })
+		} catch (err) {
+			const message = err instanceof Error ? err.message : "Unknown error"
+			log.error("KB pull failed", { error: message })
+			return c.json({ error: { code: "PULL_FAILED", message } }, 500)
+		}
 	})
 
 	// -----------------------------------------------------------------------

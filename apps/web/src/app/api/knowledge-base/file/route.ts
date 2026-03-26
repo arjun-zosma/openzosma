@@ -1,14 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
+import { resolveSafe, syncToGateway } from "@/src/lib/knowledge-base"
 import { type NextRequest, NextResponse } from "next/server"
-
-const KB_ROOT = process.env.KNOWLEDGE_BASE_PATH ?? path.join(process.cwd(), "../../.knowledge-base")
-
-const resolveSafe = (filePath: string): string | null => {
-	const resolved = path.resolve(KB_ROOT, filePath)
-	if (!resolved.startsWith(path.resolve(KB_ROOT))) return null
-	return resolved
-}
 
 const GET = async (request: NextRequest) => {
 	const filePath = request.nextUrl.searchParams.get("path")
@@ -36,8 +29,14 @@ const POST = async (request: NextRequest) => {
 		return NextResponse.json({ error: "File already exists" }, { status: 409 })
 	}
 
+	const content = body.content ?? ""
 	fs.mkdirSync(path.dirname(abs), { recursive: true })
-	fs.writeFileSync(abs, body.content ?? "", "utf-8")
+	fs.writeFileSync(abs, content, "utf-8")
+
+	// Sync to sandbox (fire-and-forget)
+	const cookie = request.headers.get("cookie") ?? ""
+	void syncToGateway(cookie, "write", body.path, content)
+
 	return NextResponse.json({ ok: true })
 }
 
@@ -50,6 +49,11 @@ const PUT = async (request: NextRequest) => {
 
 	fs.mkdirSync(path.dirname(abs), { recursive: true })
 	fs.writeFileSync(abs, body.content, "utf-8")
+
+	// Sync to sandbox (fire-and-forget)
+	const cookie = request.headers.get("cookie") ?? ""
+	void syncToGateway(cookie, "write", body.path, body.content)
+
 	return NextResponse.json({ ok: true })
 }
 
@@ -62,10 +66,15 @@ const DELETE = async (request: NextRequest) => {
 
 	try {
 		fs.unlinkSync(abs)
-		return NextResponse.json({ ok: true })
 	} catch {
 		return NextResponse.json({ error: "File not found" }, { status: 404 })
 	}
+
+	// Sync to sandbox (fire-and-forget)
+	const cookie = request.headers.get("cookie") ?? ""
+	void syncToGateway(cookie, "delete", filePath)
+
+	return NextResponse.json({ ok: true })
 }
 
 export { GET, POST, PUT, DELETE }

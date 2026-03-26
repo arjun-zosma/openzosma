@@ -2,10 +2,13 @@ import { execSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { createLogger } from "@openzosma/logger"
 import pg from "pg"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+
+const log = createLogger({ component: "db" })
 
 /**
  * Load an env file into process.env. Supports KEY=VALUE lines,
@@ -29,7 +32,7 @@ function loadEnvFile(filePath: string): void {
 				process.env[key] = value
 			}
 		}
-		console.log(`Loaded env file: ${filePath}`)
+		log.info(`Loaded env file: ${filePath}`)
 	} catch {
 		// Silently ignore if file doesn't exist
 	}
@@ -68,9 +71,9 @@ async function ensureAuthSchema(): Promise<void> {
 		const result = await pool.query("SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'auth'")
 		if (result.rows.length === 0) {
 			await pool.query('CREATE SCHEMA "auth"')
-			console.log('Schema "auth" created.')
+			log.info('Schema "auth" created.')
 		} else {
-			console.log('Schema "auth" already exists.')
+			log.info('Schema "auth" already exists.')
 		}
 	} finally {
 		await pool.end()
@@ -78,7 +81,7 @@ async function ensureAuthSchema(): Promise<void> {
 }
 
 function runBetterAuthMigrate(): void {
-	console.log("\nRunning Better Auth migration...\n")
+	log.info("Running Better Auth migration...")
 	// The better-auth CLI discovers auth config from the project it runs in.
 	// Run from apps/web/ where auth.ts lives.
 	const webAppDir = resolve(__dirname, "..", "..", "..", "apps", "web")
@@ -93,10 +96,10 @@ async function main(): Promise<void> {
 	loadEnv()
 	await ensureAuthSchema()
 	runBetterAuthMigrate()
-	console.log("Auth migration completed.")
+	log.info("Auth migration completed.")
 }
 
 main().catch((err: unknown) => {
-	console.error("Auth migration failed:", err)
+	log.error("Auth migration failed", { error: err instanceof Error ? err.message : String(err) })
 	process.exit(1)
 })

@@ -1,7 +1,10 @@
 import { createRequire } from "node:module"
 import { dirname, join } from "node:path"
+import { createLogger } from "@openzosma/logger"
 import { applyMemoryEnv } from "./config.js"
 import type { MemoryBootstrapResult, MemoryConfig } from "./types.js"
+
+const log = createLogger({ component: "memory" })
 
 /**
  * Resolve the entry point file for an npm package.
@@ -36,12 +39,10 @@ export function bootstrapMemory(config: MemoryConfig): MemoryBootstrapResult {
 	].filter((p): p is string => p !== null)
 
 	if (paths.length === 0) {
-		console.warn(
-			"[openzosma/memory] Neither pi-memory nor pi-extension-observational-memory found. Memory system will not be available.",
-		)
+		log.warn("Neither pi-memory nor pi-extension-observational-memory found. Memory system will not be available.")
 	} else if (paths.length === 1) {
 		const missing = paths[0].includes("pi-memory") ? "pi-extension-observational-memory" : "pi-memory"
-		console.warn(`[openzosma/memory] ${missing} not found. Memory system will run in degraded mode.`)
+		log.warn(`${missing} not found. Memory system will run in degraded mode.`)
 	}
 
 	return { paths, memoryDir }

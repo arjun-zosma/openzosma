@@ -1,8 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
+import { KNOWLEDGE_BASE_PATH } from "@/src/lib/constants"
 import { NextResponse } from "next/server"
-
-const KB_ROOT = process.env.KNOWLEDGE_BASE_PATH ?? path.join(process.cwd(), "../../.knowledge-base")
 
 interface KBEntry {
 	id: string
@@ -46,8 +45,8 @@ const readTree = (dir: string, relativePath = ""): KBEntry[] => {
 }
 
 const GET = async () => {
-	fs.mkdirSync(KB_ROOT, { recursive: true })
-	const tree = readTree(KB_ROOT)
+	fs.mkdirSync(KNOWLEDGE_BASE_PATH, { recursive: true })
+	const tree = readTree(KNOWLEDGE_BASE_PATH)
 	return NextResponse.json(tree)
 }
 

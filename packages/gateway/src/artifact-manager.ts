@@ -2,7 +2,10 @@ import { createReadStream, existsSync, mkdirSync, readdirSync, rmSync, statSync 
 import type { ReadStream } from "node:fs"
 import { copyFile } from "node:fs/promises"
 import { basename, extname, join, resolve } from "node:path"
+import { createLogger } from "@openzosma/logger"
 import type { DetectedFile } from "./file-scanner.js"
+
+const log = createLogger({ component: "gateway" })
 
 export interface ArtifactEntry {
 	/** The filename in the artifacts directory. */
@@ -62,7 +65,7 @@ export class ArtifactManager {
 					createdAt: new Date().toISOString(),
 				})
 			} catch (err) {
-				console.error(`[artifact-manager] Failed to promote ${file.relativePath}:`, err)
+				log.error(`Failed to promote ${file.relativePath}`, { error: err instanceof Error ? err.message : String(err) })
 			}
 		}
 
@@ -141,7 +144,9 @@ export class ArtifactManager {
 		try {
 			rmSync(dir, { recursive: true, force: true })
 		} catch (err) {
-			console.error(`[artifact-manager] Failed to delete artifacts for session ${sessionId}:`, err)
+			log.error(`Failed to delete artifacts for session ${sessionId}`, {
+				error: err instanceof Error ? err.message : String(err),
+			})
 		}
 	}
 

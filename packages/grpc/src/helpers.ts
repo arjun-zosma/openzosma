@@ -1,5 +1,8 @@
 import { ChannelCredentials, Server, ServerCredentials } from "@grpc/grpc-js"
+import { createLogger } from "@openzosma/logger"
 import { GrpcTransport } from "@protobuf-ts/grpc-transport"
+
+const log = createLogger({ component: "grpc" })
 
 export interface GrpcChannelOptions {
 	host: string
@@ -32,7 +35,7 @@ export async function startGrpcServer(server: Server, options: GrpcServerOptions
 				reject(err)
 				return
 			}
-			console.log(`gRPC server listening on ${address}`)
+			log.info(`gRPC server listening on ${address}`)
 			resolve()
 		})
 	})

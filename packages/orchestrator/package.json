@@ -19,6 +19,7 @@
 	"dependencies": {
 		"@openzosma/agents": "workspace:*",
 		"@openzosma/db": "workspace:*",
+		"@openzosma/logger": "workspace:*",
 		"@openzosma/sandbox": "workspace:*"
 	},
 	"devDependencies": {

@@ -7,12 +7,15 @@ import {
 	SessionManager,
 	createAgentSession,
 } from "@mariozechner/pi-coding-agent"
+import { createLogger } from "@openzosma/logger"
 import { bootstrapMemory } from "@openzosma/memory"
 import { DEFAULT_SYSTEM_PROMPT } from "./pi/config.js"
 import { bootstrapPiExtensions } from "./pi/extensions/index.js"
 import { resolveModel } from "./pi/model.js"
 import { createDefaultTools } from "./pi/tools.js"
 import type { AgentMessage, AgentProvider, AgentSession, AgentSessionOpts, AgentStreamEvent } from "./types.js"
+
+const log = createLogger({ component: "agents" })
 
 /**
  * Build a ModelRegistry that knows about a custom provider and its API key.
@@ -73,7 +76,7 @@ class PiAgentSession implements AgentSession {
 			})
 			if (extensionsResult.errors.length > 0) {
 				const extensionErrors = extensionsResult.errors.map((e) => `${e.path}: ${e.error}`).join("; ")
-				console.warn(`[openzosma/agents] extension load errors: ${extensionErrors}`)
+				log.warn(`Extension load errors: ${extensionErrors}`)
 			}
 			return session
 		})()

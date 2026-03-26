@@ -28,3 +28,24 @@ export interface SendMessageRequest {
 
 /** Re-export for convenience. */
 export type { AgentStreamEvent }
+
+// ---------------------------------------------------------------------------
+// Knowledge base types
+// ---------------------------------------------------------------------------
+
+/** A single file in the knowledge base. */
+export interface KBFileEntry {
+	/** Relative path within .knowledge-base/ */
+	path: string
+	/** UTF-8 file content */
+	content: string
+	/** File size in bytes */
+	sizeBytes: number
+	/** ISO 8601 last modified timestamp */
+	modifiedAt: string
+}
+
+/** Response for GET /kb */
+export interface KBListResponse {
+	files: KBFileEntry[]
+}

@@ -2,9 +2,12 @@ import { existsSync } from "node:fs"
 import { createRequire } from "node:module"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
+import { createLogger } from "@openzosma/logger"
 import { syncGuardrailsConfig } from "./guard-rails.js"
 import { applySubagentEnv, isPiAvailable, syncSubagentDefinitions, syncSubagentsConfig } from "./subagents.js"
 import { syncWebSearchConfig } from "./web-search.js"
+
+const log = createLogger({ component: "agents" })
 
 const PI_GLOBAL_EXTENSIONS_DIR = join(homedir(), ".pi", "agent", "extensions")
 
@@ -37,7 +40,7 @@ export const bootstrapPiExtensions = (): PiExtensionBootstrapResult => {
 	].filter((p): p is string => Boolean(p))
 
 	if (!piAvailable) {
-		console.warn("[openzosma/agents] pi CLI not found — subagent tools will not be available")
+		log.warn("pi CLI not found -- subagent tools will not be available")
 	}
 
 	applySubagentEnv()

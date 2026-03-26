@@ -1,7 +1,12 @@
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { join, normalize, relative, resolve } from "node:path"
+import { createLogger } from "@openzosma/logger"
 import { Hono } from "hono"
 import { streamSSE } from "hono/streaming"
 import { SandboxAgentManager } from "./agent.js"
-import type { CreateSessionRequest, SendMessageRequest } from "./types.js"
+import type { CreateSessionRequest, KBFileEntry, SendMessageRequest } from "./types.js"
+
+const log = createLogger({ component: "sandbox-server" })
 
 /**
  * Create the Hono HTTP server that runs inside each sandbox container.
@@ -10,6 +15,50 @@ import type { CreateSessionRequest, SendMessageRequest } from "./types.js"
  * pi-coding-agent. The orchestrator communicates with this server via HTTP,
  * routing messages in and streaming events (SSE) out.
  */
+const WORKSPACE_DIR = process.env.OPENZOSMA_WORKSPACE ?? "/workspace"
+const KB_DIR = join(WORKSPACE_DIR, ".knowledge-base")
+
+/**
+ * Resolve a relative path within the KB directory.
+ * Returns null if the resolved path escapes the KB root (path traversal).
+ */
+const resolveKBPath = (relativePath: string): string | null => {
+	const resolved = resolve(KB_DIR, normalize(relativePath))
+	if (!resolved.startsWith(KB_DIR)) return null
+	return resolved
+}
+
+/**
+ * Recursively collect all files in a directory.
+ * Returns entries with relative paths and file contents.
+ */
+const collectKBFiles = (dir: string, base: string = dir): KBFileEntry[] => {
+	if (!existsSync(dir)) return []
+
+	const entries: KBFileEntry[] = []
+	for (const dirent of readdirSync(dir, { withFileTypes: true })) {
+		const fullPath = join(dir, dirent.name)
+		if (dirent.isDirectory()) {
+			entries.push(...collectKBFiles(fullPath, base))
+		} else if (dirent.isFile()) {
+			const relPath = relative(base, fullPath)
+			try {
+				const content = readFileSync(fullPath, "utf-8")
+				const stat = statSync(fullPath)
+				entries.push({
+					path: relPath,
+					content,
+					sizeBytes: stat.size,
+					modifiedAt: stat.mtime.toISOString(),
+				})
+			} catch {
+				// Skip files that can't be read (e.g. broken symlinks)
+			}
+		}
+	}
+	return entries
+}
+
 export function createSandboxApp(): Hono {
 	const app = new Hono()
 	const agent = new SandboxAgentManager()
@@ -49,7 +98,7 @@ export function createSandboxApp(): Hono {
 		} catch (err: unknown) {
 			const message = err instanceof Error ? err.message : "Unknown error creating session"
 			const stack = err instanceof Error ? err.stack : undefined
-			console.error("[sandbox-server] POST /sessions failed:", message, stack ?? "")
+			log.error("POST /sessions failed", { error: message, stack })
 			return c.json({ error: message }, 500)
 		}
 	})
@@ -152,6 +201,81 @@ export function createSandboxApp(): Hono {
 		// A dedicated cancel mechanism would require tracking active generators,
 		// which will be added if needed.
 		return c.json({ ok: true })
+	})
+
+	// -----------------------------------------------------------------------
+	// Knowledge base CRUD
+	// -----------------------------------------------------------------------
+
+	/**
+	 * GET /kb -- list all KB files with content.
+	 *
+	 * Returns all files under /workspace/.knowledge-base/ recursively,
+	 * including their content (for pull sync back to the dashboard).
+	 */
+	app.get("/kb", (c) => {
+		const files = collectKBFiles(KB_DIR)
+		return c.json({ files })
+	})
+
+	/**
+	 * PUT /kb/* -- create or update a KB file.
+	 *
+	 * The path after /kb/ is the relative file path within the KB directory.
+	 * Body: { content: string }
+	 */
+	app.put("/kb/*", async (c) => {
+		const filePath = c.req.path.replace(/^\/kb\//, "")
+		if (!filePath) {
+			return c.json({ error: "File path is required" }, 400)
+		}
+
+		const resolved = resolveKBPath(filePath)
+		if (!resolved) {
+			return c.json({ error: "Invalid path (traversal detected)" }, 400)
+		}
+
+		let body: { content: string }
+		try {
+			body = await c.req.json<{ content: string }>()
+		} catch {
+			return c.json({ error: "Invalid request body" }, 400)
+		}
+
+		if (typeof body.content !== "string") {
+			return c.json({ error: "content must be a string" }, 400)
+		}
+
+		// Ensure parent directories exist
+		const parentDir = resolve(resolved, "..")
+		mkdirSync(parentDir, { recursive: true })
+
+		writeFileSync(resolved, body.content, "utf-8")
+		return c.json({ ok: true, path: filePath })
+	})
+
+	/**
+	 * DELETE /kb/* -- delete a KB file or directory.
+	 *
+	 * The path after /kb/ is the relative file path within the KB directory.
+	 */
+	app.delete("/kb/*", (c) => {
+		const filePath = c.req.path.replace(/^\/kb\//, "")
+		if (!filePath) {
+			return c.json({ error: "File path is required" }, 400)
+		}
+
+		const resolved = resolveKBPath(filePath)
+		if (!resolved) {
+			return c.json({ error: "Invalid path (traversal detected)" }, 400)
+		}
+
+		if (!existsSync(resolved)) {
+			return c.json({ error: "File not found" }, 404)
+		}
+
+		rmSync(resolved, { recursive: true, force: true })
+		return c.json({ ok: true, path: filePath })
 	})
 
 	return app

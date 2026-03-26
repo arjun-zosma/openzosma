@@ -54,15 +54,28 @@ RUN cp -r packages/sandbox-server/dist /deploy/dist
 # ---------------------------------------------------------------------------
 FROM node:22-slim
 
-# Install minimal runtime dependencies
-# iproute2 is required by the OpenShell sandbox supervisor for network namespace creation
+# Install runtime dependencies and developer tools.
+# iproute2 is required by the OpenShell sandbox supervisor for network namespace creation.
+# python3-venv provides virtualenv support for isolated Python environments.
+# tree, jq, wget, less, unzip, zip are general-purpose CLI tools the agent can use.
+# make + g++ are required for native npm modules that use node-gyp.
+# Node.js and npm are already present from the node:22-slim base image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     python3 \
     python3-pip \
+    python3-venv \
     tini \
     curl \
     iproute2 \
+    tree \
+    jq \
+    wget \
+    less \
+    unzip \
+    zip \
+    make \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Create sandbox user (OpenShell convention: non-root execution)

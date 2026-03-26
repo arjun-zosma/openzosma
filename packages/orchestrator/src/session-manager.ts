@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto"
 import type { AgentStreamEvent } from "@openzosma/agents"
 import type { Pool } from "@openzosma/db"
-import { agentConfigQueries } from "@openzosma/db"
+import { agentConfigQueries, userSandboxQueries } from "@openzosma/db"
+import type { UserSandbox } from "@openzosma/db"
+import { createLogger } from "@openzosma/logger"
 import type { SandboxHttpClient } from "./sandbox-http-client.js"
 import type { SandboxManager } from "./sandbox-manager.js"
-import type { OrchestratorSession } from "./types.js"
+import type { KBFileEntry, OrchestratorSession } from "./types.js"
+
+const log = createLogger({ component: "orchestrator" })
 
 /**
  * Orchestrator session manager.
@@ -144,6 +148,28 @@ export class OrchestratorSessionManager {
 	}
 
 	// -----------------------------------------------------------------------
+	// Sandbox lifecycle
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Destroy the sandbox for a user. Removes the OpenShell pod, DB record,
+	 * and all in-memory session state associated with the user.
+	 *
+	 * The next request from this user will trigger a fresh sandbox creation
+	 * (which includes uploading the latest knowledge base content).
+	 */
+	async destroyUserSandbox(userId: string): Promise<void> {
+		// Remove all sessions belonging to this user from the registry
+		for (const [sessionId, session] of this.sessions) {
+			if (session.userId === userId) {
+				this.sessions.delete(sessionId)
+			}
+		}
+
+		await this.sandboxManager.destroySandbox(userId)
+	}
+
+	// -----------------------------------------------------------------------
 	// Message handling
 	// -----------------------------------------------------------------------
 
@@ -172,7 +198,7 @@ export class OrchestratorSessionManager {
 
 		const session = this.sessions.get(sessionId)
 		if (!session) {
-			console.error(`[orchestrator] session ${sessionId} could not be initialized`)
+			log.error("Session could not be initialized", { sessionId })
 			yield { type: "error", error: `Session ${sessionId} could not be initialized` }
 			return
 		}
@@ -200,7 +226,7 @@ export class OrchestratorSessionManager {
 		} catch (err) {
 			if (!signal?.aborted) {
 				const message = err instanceof Error ? err.message : "Unknown sandbox error"
-				console.error(`[orchestrator] sendMessage error: ${message}`)
+				log.error("sendMessage error", { error: message })
 				yield { type: "error", error: message }
 			}
 		}
@@ -246,5 +272,49 @@ export class OrchestratorSessionManager {
 	 */
 	get activeSessionCount(): number {
 		return this.sessions.size
+	}
+
+	/**
+	 * Get the sandbox DB record for a user.
+	 * Returns null if the user has no sandbox.
+	 */
+	async getUserSandboxInfo(userId: string): Promise<UserSandbox | null> {
+		return userSandboxQueries.getByUserId(this.pool, userId)
+	}
+
+	// -----------------------------------------------------------------------
+	// Knowledge base sync
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Push a file to the sandbox's knowledge base.
+	 * Ensures the sandbox is running before writing.
+	 */
+	async pushKBFile(userId: string, path: string, content: string): Promise<void> {
+		await this.sandboxManager.ensureSandbox(userId)
+		const client = this.sandboxManager.getHttpClient(userId)
+		await client.writeKBFile(path, content)
+	}
+
+	/**
+	 * Delete a file from the sandbox's knowledge base.
+	 * No-op if the sandbox is not running.
+	 */
+	async deleteKBFile(userId: string, path: string): Promise<void> {
+		const state = this.sandboxManager.getSandboxState(userId)
+		if (!state) return // No sandbox running, nothing to delete
+		const client = this.sandboxManager.getHttpClient(userId)
+		await client.deleteKBFile(path)
+	}
+
+	/**
+	 * Pull all KB files from the sandbox.
+	 * Returns the full content of every file in the sandbox's .knowledge-base/.
+	 */
+	async pullKB(userId: string): Promise<KBFileEntry[]> {
+		const state = this.sandboxManager.getSandboxState(userId)
+		if (!state) return []
+		const client = this.sandboxManager.getHttpClient(userId)
+		return client.listKBFiles()
 	}
 }
