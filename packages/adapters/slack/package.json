@@ -17,7 +17,8 @@
 	},
 	"dependencies": {
 		"@openzosma/db": "workspace:*",
-		"@openzosma/grpc": "workspace:*"
+		"@openzosma/gateway": "workspace:*",
+		"@slack/bolt": "^4.3.0"
 	},
 	"devDependencies": {
 		"@types/node": "^22.15.2",

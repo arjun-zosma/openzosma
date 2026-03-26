@@ -3,6 +3,7 @@ import { serve } from "@hono/node-server"
 import { createAuthFromEnv } from "@openzosma/auth"
 import { createPool } from "@openzosma/db"
 import { WebSocketServer } from "ws"
+import { initAdapters } from "./adapters.js"
 import { createApp } from "./app.js"
 import { SessionManager } from "./session-manager.js"
 import { handleWebSocket } from "./ws.js"
@@ -61,4 +62,14 @@ server.on("upgrade", (request, socket, head) => {
 
 wss.on("connection", (ws) => {
 	handleWebSocket(ws, sessionManager)
+})
+
+// Start channel adapters (Slack, WhatsApp, etc.) when their env vars are set
+const adapters = await initAdapters(sessionManager)
+
+process.on("SIGTERM", async () => {
+	for (const adapter of adapters) {
+		await adapter.shutdown()
+	}
+	process.exit(0)
 })
