@@ -110,6 +110,41 @@ export async function testconnection(type: string, config: ConnectionConfig): Pr
 	}
 }
 
+// ─── Read-only enforcement ────────────────────────────────────────────────────
+
+const BLOCKED_KEYWORDS = [
+	"INSERT",
+	"UPDATE",
+	"DELETE",
+	"DROP",
+	"ALTER",
+	"CREATE",
+	"TRUNCATE",
+	"GRANT",
+	"REVOKE",
+	"EXEC",
+	"EXECUTE",
+]
+
+/**
+ * Check that a query is read-only by inspecting its keywords.
+ * This is an application-level safety check; the database-level read-only
+ * transaction provides the authoritative enforcement.
+ */
+function isreadonly(query: string): boolean {
+	const normalized = query.trim().toUpperCase()
+	return !BLOCKED_KEYWORDS.some((kw) => normalized.startsWith(kw) || normalized.includes(` ${kw} `))
+}
+
+/**
+ * If the query does not already contain a LIMIT clause, append one as a safety cap.
+ */
+function ensafelimit(query: string, maxrows = 1000): string {
+	const upper = query.trim().toUpperCase()
+	if (upper.includes("LIMIT")) return query
+	return `${query.trimEnd()}\nLIMIT ${maxrows}`
+}
+
 // ─── Query Execution ──────────────────────────────────────────────────────────
 
 export type QueryResult = {
@@ -124,9 +159,19 @@ export type QueryResult = {
 const QUERY_TIMEOUT_MS = 30_000 // 30 seconds
 
 /**
- * Execute a SQL query against a PostgreSQL database.
+ * Execute a read-only SQL query against a PostgreSQL database.
+ *
+ * The query is user-provided by design (authenticated users run SQL against
+ * their own connected databases). Safety is enforced at two levels:
+ * 1. Application-level keyword blocklist (defense in depth)
+ * 2. Database-level read-only transaction (authoritative enforcement)
  */
 export async function querypostgresql(config: ConnectionConfig, query: string): Promise<QueryResult> {
+	if (!isreadonly(query)) {
+		return { success: false, rows: [], fields: [], rowcount: 0, error: "Only read-only queries are allowed" }
+	}
+
+	const safequery = ensafelimit(query)
 	const start = Date.now()
 	const pool = new PgPool({
 		host: config.host,
@@ -142,7 +187,11 @@ export async function querypostgresql(config: ConnectionConfig, query: string): 
 	try {
 		const client = await pool.connect()
 		try {
-			const result = await client.query(query)
+			// Enforce read-only at the database level so the server rejects
+			// any write attempt regardless of the keyword check above.
+			await client.query("BEGIN TRANSACTION READ ONLY")
+			const result = await client.query(safequery) // CodeQL[js/sql-injection] -- intentionally user-provided; guarded by read-only transaction
+			await client.query("COMMIT")
 			const latencyms = Date.now() - start
 			return {
 				success: true,
@@ -151,6 +200,9 @@ export async function querypostgresql(config: ConnectionConfig, query: string): 
 				rowcount: result.rowCount ?? result.rows?.length ?? 0,
 				latencyms,
 			}
+		} catch (error) {
+			await client.query("ROLLBACK").catch(() => {})
+			throw error
 		} finally {
 			client.release()
 		}
@@ -169,9 +221,19 @@ export async function querypostgresql(config: ConnectionConfig, query: string): 
 }
 
 /**
- * Execute a SQL query against a MySQL / MariaDB database.
+ * Execute a read-only SQL query against a MySQL / MariaDB database.
+ *
+ * The query is user-provided by design (authenticated users run SQL against
+ * their own connected databases). Safety is enforced at two levels:
+ * 1. Application-level keyword blocklist (defense in depth)
+ * 2. Database-level read-only transaction (authoritative enforcement)
  */
 export async function querymysql(config: ConnectionConfig, query: string): Promise<QueryResult> {
+	if (!isreadonly(query)) {
+		return { success: false, rows: [], fields: [], rowcount: 0, error: "Only read-only queries are allowed" }
+	}
+
+	const safequery = ensafelimit(query)
 	const start = Date.now()
 	let connection: mysql.Connection | null = null
 
@@ -186,10 +248,14 @@ export async function querymysql(config: ConnectionConfig, query: string): Promi
 			connectTimeout: 10_000,
 		})
 
-		// Set query timeout
+		// Set query timeout and enforce read-only at the database level
 		await connection.query(`SET SESSION MAX_EXECUTION_TIME = ${QUERY_TIMEOUT_MS}`)
+		await connection.query("SET SESSION TRANSACTION READ ONLY")
+		await connection.query("START TRANSACTION")
 
-		const [rows, fields] = await connection.query(query)
+		const [rows, fields] = await connection.query(safequery) // CodeQL[js/sql-injection] -- intentionally user-provided; guarded by read-only transaction
+		await connection.query("COMMIT")
+
 		const latencyms = Date.now() - start
 		const rowarray = Array.isArray(rows) ? rows : []
 		return {
@@ -200,6 +266,9 @@ export async function querymysql(config: ConnectionConfig, query: string): Promi
 			latencyms,
 		}
 	} catch (error) {
+		if (connection) {
+			await connection.query("ROLLBACK").catch(() => {})
+		}
 		return {
 			success: false,
 			rows: [],
@@ -217,6 +286,7 @@ export async function querymysql(config: ConnectionConfig, query: string): Promi
 
 /**
  * Dispatcher — execute a SQL query against the correct database type.
+ * Read-only enforcement and LIMIT safety are applied within each connector.
  */
 export async function executequery(type: string, config: ConnectionConfig, query: string): Promise<QueryResult> {
 	switch (type) {

@@ -37,36 +37,6 @@ function decryptconfig(stored: {
 	}
 }
 
-// ─── Read-only enforcement ────────────────────────────────────────────────────
-
-const BLOCKED_KEYWORDS = [
-	"INSERT",
-	"UPDATE",
-	"DELETE",
-	"DROP",
-	"ALTER",
-	"CREATE",
-	"TRUNCATE",
-	"GRANT",
-	"REVOKE",
-	"EXEC",
-	"EXECUTE",
-]
-
-function isreadonly(query: string): boolean {
-	const normalized = query.trim().toUpperCase()
-	return !BLOCKED_KEYWORDS.some((kw) => normalized.startsWith(kw) || normalized.includes(` ${kw} `))
-}
-
-/**
- * If the query does not already contain a LIMIT clause, append one as a safety cap.
- */
-function ensafelimit(query: string, maxrows = 1000): string {
-	const upper = query.trim().toUpperCase()
-	if (upper.includes("LIMIT")) return query
-	return `${query.trimEnd()}\nLIMIT ${maxrows}`
-}
-
 // ─── POST ─────────────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ integrationid: string }> }) {
@@ -87,9 +57,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 		}
 
 		// ── Read-only enforcement ──
-		if (!isreadonly(query)) {
-			return NextResponse.json({ error: "Only read-only queries are allowed" }, { status: 422 })
-		}
+		// Note: read-only checks and LIMIT enforcement are handled inside
+		// executequery() at both the application and database level.
 
 		// ── Fetch integration ──
 		const integrationresult = await pool.query(
@@ -112,8 +81,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 		// ── Decrypt config and execute query ──
 		const config = decryptconfig(integration.config)
-		const safequery = ensafelimit(query.trim())
-		const result = await executequery(integration.type, config, safequery)
+		const result = await executequery(integration.type, config, query.trim())
 
 		if (result.success) {
 			return NextResponse.json({

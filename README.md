@@ -30,10 +30,6 @@ You (from your phone, WhatsApp, or Slack)
 
 Agents don't replace your team. They handle the routine lookups, status checks, data entry, and coordination that eat up your team's day -- so your people can focus on work that requires human judgment.
 
-> **Note:** The gateway `dev` script loads `../../.env.local` automatically via `--env-file`. If you need a different env file, run `npx tsx --env-file=<path> src/index.ts` from `packages/gateway/`. When `.env.local` has `DB_HOST` or `DATABASE_URL` set, the gateway connects to PostgreSQL and enables A2A per-agent routes.
-
-### Full Setup
-
 ## Key Features
 
 * **Hierarchical agents** -- Configure org-chart-like agent trees. Manager agents delegate to specialist agents automatically.
@@ -50,6 +46,26 @@ Agents don't replace your team. They handle the routine lookups, status checks, 
 
 ## Quick Start
 
+The fastest way to get running is the interactive setup CLI. It handles cloning, environment configuration, Docker services, database migrations, and the initial build in one shot:
+
+```bash
+pnpm create openzosma
+```
+
+or with npx:
+
+```bash
+npx create-openzosma
+```
+
+The CLI walks you through choosing an LLM provider, configuring PostgreSQL, setting up auth secrets, and optionally enabling sandboxed execution. At the end it offers to start the gateway and dashboard for you.
+
+**Already cloned the repo?** Run `pnpm setup` from the repo root instead. The CLI detects the existing checkout and skips the clone step.
+
+### Manual Setup
+
+If you prefer to configure things by hand:
+
 ```bash
 git clone https://github.com/zosmaai/openzosma.git
 cd openzosma
@@ -60,19 +76,23 @@ docker compose up -d
 
 # Configure environment
 cp .env.example .env.local
-# Edit .env.local with your API keys and secrets
+# Edit .env.local -- at minimum set an LLM API key and AUTH_SECRET
 
 # Run database migrations
 pnpm db:migrate
 pnpm db:migrate:auth
 
-# Build and start
+# Build all packages
 pnpm run build
+
+# Start the gateway and dashboard in separate terminals
 pnpm --filter @openzosma/gateway dev   # Terminal 1 (port 4000)
 pnpm --filter @openzosma/web dev       # Terminal 2 (port 3000)
 ```
 
 Open <http://localhost:3000>, sign up, and start a conversation.
+
+> **Note:** The gateway `dev` script loads `../../.env.local` automatically via `--env-file`. If you need a different env file, run `npx tsx --env-file=<path> src/index.ts` from `packages/gateway/`.
 
 ### Running with Sandboxes (Optional)
 

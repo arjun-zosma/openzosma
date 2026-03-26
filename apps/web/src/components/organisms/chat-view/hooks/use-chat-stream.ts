@@ -140,12 +140,12 @@ const useChatStream = (
 				const ws = new WebSocket(wsurl)
 				let fullcontent = ""
 				let fullreasoning = ""
-				const toolcalls: Record<string, StreamToolCall> = {}
+				const toolcalls = new Map<string, StreamToolCall>()
 				const segments: MessageSegment[] = []
 				const allartifacts: FileArtifact[] = []
 
 				const updatetoolcalls = () => {
-					setStreamingtoolcalls(Object.values(toolcalls))
+					setStreamingtoolcalls(Array.from(toolcalls.values()))
 				}
 
 				const updatesegments = () => {
@@ -198,12 +198,12 @@ const useChatStream = (
 											parsedargs = toolArgs
 										}
 									}
-									toolcalls[toolCallId] = {
+									toolcalls.set(toolCallId, {
 										toolcallid: toolCallId,
 										toolname: toolName || "unknown",
 										args: parsedargs,
 										state: "calling",
-									}
+									})
 									segments.push({ type: "tool", toolcallid: toolCallId })
 									updatetoolcalls()
 									updatesegments()
@@ -212,8 +212,8 @@ const useChatStream = (
 							}
 							case "tool_call_update": {
 								const { toolCallId, toolResult } = evt
-								if (toolCallId && toolcalls[toolCallId]) {
-									const existing = toolcalls[toolCallId]
+								if (toolCallId && toolcalls.has(toolCallId)) {
+									const existing = toolcalls.get(toolCallId)!
 									const rawtext = typeof existing.result === "string" ? existing.result : ""
 									existing.result = rawtext + (toolResult || "")
 									existing.state = "streaming-args"
@@ -224,19 +224,20 @@ const useChatStream = (
 							case "tool_call_end": {
 								const { toolCallId, toolResult, isToolError } = evt
 								if (toolCallId) {
-									if (toolcalls[toolCallId]) {
-										toolcalls[toolCallId].result = toolResult
-										toolcalls[toolCallId].iserror = isToolError
-										toolcalls[toolCallId].state = isToolError ? "error" : "result"
+									if (toolcalls.has(toolCallId)) {
+										const existing = toolcalls.get(toolCallId)!
+										existing.result = toolResult
+										existing.iserror = isToolError
+										existing.state = isToolError ? "error" : "result"
 									} else {
-										toolcalls[toolCallId] = {
+										toolcalls.set(toolCallId, {
 											toolcallid: toolCallId,
 											toolname: evt.toolName || "unknown",
 											args: {},
 											state: isToolError ? "error" : "result",
 											result: toolResult,
 											iserror: isToolError,
-										}
+										})
 										segments.push({ type: "tool", toolcallid: toolCallId })
 										updatesegments()
 									}
@@ -300,8 +301,8 @@ const useChatStream = (
 							senderid: agentparticipant.participantid,
 							content: fullcontent,
 							metadata:
-								Object.keys(toolcalls).length > 0
-									? { toolcalls: Object.values(toolcalls), segments }
+								toolcalls.size > 0
+									? { toolcalls: Array.from(toolcalls.values()), segments }
 									: segments.length > 0
 										? { segments }
 										: {},

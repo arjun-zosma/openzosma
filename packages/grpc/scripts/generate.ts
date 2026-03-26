@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process"
+import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -22,7 +22,7 @@ for (const proto of protoFiles) {
 	const protoPath = join(protoDir, proto)
 	log.info(`Generating TypeScript from ${proto}...`)
 
-	execSync(`npx protoc --ts_out ${outDir} --proto_path ${protoDir} ${protoPath}`, { stdio: "inherit" })
+	execFileSync("npx", ["protoc", "--ts_out", outDir, "--proto_path", protoDir, protoPath], { stdio: "inherit" })
 }
 
 // Post-process: add .js extensions to relative imports for Node16 moduleResolution
