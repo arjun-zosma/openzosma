@@ -103,6 +103,11 @@ OpenZosma is an open-source, self-hosted platform for creating hierarchical AI a
 
 Agents don't replace your team. They handle the routine lookups, status checks, data entry, and coordination that eat up your team's day -- so your people can focus on work that requires human judgment.
 
+<div align="center">
+  <h3>Watch: Set up OpenZosma in under 2 minutes</h3>
+  <video src="assets/setup-demo.mp4" width="100%" autoplay loop muted playsinline></video>
+</div>
+
 ### Key Features
 
 - **Hierarchical agents** -- Configure org-chart-like agent trees. Manager agents delegate to specialist agents automatically.
