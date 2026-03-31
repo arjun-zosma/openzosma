@@ -17,7 +17,10 @@ export async function GET(req: NextRequest) {
              WHERE m.conversationid = c.id AND m.deletedat IS NULL
              ORDER BY m.createdat DESC LIMIT 1) as lastmessage,
             (SELECT COUNT(*) FROM public.messages m
-             WHERE m.conversationid = c.id AND m.deletedat IS NULL)::int as messagecount
+             WHERE m.conversationid = c.id AND m.deletedat IS NULL)::int as messagecount,
+            (SELECT participantname FROM public.conversationparticipants cp
+             WHERE cp.conversationid = c.id AND cp.participanttype = 'agent' AND cp.deletedat IS NULL
+             LIMIT 1) as agentname
      FROM public.conversations c
      WHERE c.deletedat IS NULL
      ORDER BY c.updatedat DESC`,
