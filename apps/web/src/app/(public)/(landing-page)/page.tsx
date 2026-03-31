@@ -29,7 +29,7 @@ const HeroPage = () => {
 					<h1 className="text-center text-foreground font-antonio text-4xl font-extrabold uppercase tracking-tight md:text-8xl">
 						<AnimatedText text="Improving Business Intelligence" />
 					</h1>
-					<Asterisk size={40} strokeWidth={3} className="hidden lg:block text-red-500 size-fit" />
+					<Asterisk size={40} strokeWidth={3} className="hidden md:block lg:block text-red-500 size-fit" />
 				</div>
 				<p className="text-muted-foreground/80 max-w-xl">
 					An AI agent that analyzes business data, extracts key insights, and provides real-time business intelligence,
