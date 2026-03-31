@@ -36,6 +36,13 @@ Delegate tasks through natural conversation from WhatsApp, Slack, or a web dashb
 
 ---
 
+## Recent changes
+
+- Merge pull request #59: fix(web): session sidebar polish, search/filter, metadata, delete confirmation.
+- Merge pull request #58: feat/integrations: added integration adapters and setup for external services.
+
+These updates include user interface polish to the web dashboard (session sidebar improvements, search and filtering for sessions, metadata display, and delete confirmation flows) and new integration scaffolding to connect external tools. The README below was updated to reflect these latest changes.
+
 ## Get Started
 
 One command sets up everything -- cloning, environment, Docker services, database migrations, and the first build:
