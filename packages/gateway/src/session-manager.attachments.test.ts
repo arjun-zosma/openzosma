@@ -1,28 +1,29 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest"
-import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs"
+import { mkdtempSync, rmSync, existsSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { SessionManager } from "./session-manager.js"
+import type { AgentProvider, AgentSession, AgentSessionOpts } from "@openzosma/agents"
 
 // Use the real SessionManager but stub provider to avoid creating real AgentSession
-class StubProvider {
-  constructor() {
-    this.calls = []
-  }
-  createSession(opts) {
+class StubProvider implements AgentProvider {
+  readonly id = "stub"
+  readonly name = "Stub"
+  calls: AgentSessionOpts[] = []
+  createSession(opts: AgentSessionOpts): AgentSession {
     this.calls.push(opts)
     return {
       async *sendMessage() {},
       getMessages() {
         return []
       },
-    }
+    } as unknown as AgentSession
   }
 }
 
 describe("SessionManager attachments and decodeDataUrl", () => {
-  let tmpDir
-  let savedEnv
+  let tmpDir: string
+  let savedEnv: string | undefined
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "sm-test-"))
     savedEnv = process.env.OPENZOSMA_WORKSPACE
@@ -49,11 +50,10 @@ describe("SessionManager attachments and decodeDataUrl", () => {
 
   it("writes attachments to disk and disambiguates duplicate filenames", async () => {
     const sm = new SessionManager({ provider: new StubProvider() })
-    const workspace = tmpDir
     // create a local session to cause workspace dir to be created
     const session = await sm.createSession("s1")
     const state = (sm as any).sessions.get(session.id)
-    const workspaceDir = state.workspaceDir
+    const workspaceDir: string = state.workspaceDir
 
     const base64 = Buffer.from("file content").toString("base64")
     const attachments = [

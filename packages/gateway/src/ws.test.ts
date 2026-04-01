@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { handleWebSocket } from "./ws.js"
+import type { SessionManager } from "./session-manager.js"
 
 // Minimal fake WebSocket implementation for tests
 function createFakeWs() {
@@ -28,9 +29,9 @@ function createFakeWs() {
 }
 
 // Stub sessionManager with controllable sendMessage generator
-function makeStubSessionManager(eventsPerCall = []) {
+function makeStubSessionManager(eventsPerCall: any[] = []) {
   return {
-    sendMessage: async function* (sessionId, content, signal) {
+    sendMessage: async function* (sessionId: string, content: string, signal?: AbortSignal) {
       // Yield configured events; then wait until aborted (if signal provided)
       for (const e of eventsPerCall) {
         yield e
@@ -41,7 +42,7 @@ function makeStubSessionManager(eventsPerCall = []) {
         }
       }
     },
-  }
+  } as unknown as SessionManager
 }
 
 describe("handleWebSocket", () => {
@@ -109,14 +110,14 @@ describe("handleWebSocket", () => {
     const ws = createFakeWs()
     // create a sendMessage that yields one start event then waits for abort
     const sm = {
-      sendMessage: async function* (sessionId, content, signal) {
+      sendMessage: async function* (sessionId: string, content: string, signal?: AbortSignal) {
         yield { type: "message_start", id: "m1" }
         // wait until aborted
         if (signal && !signal.aborted) {
           await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }))
         }
       },
-    }
+    } as unknown as SessionManager
 
     handleWebSocket(ws, sm)
 
