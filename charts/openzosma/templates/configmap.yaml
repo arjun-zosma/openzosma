@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openzosma.configmapName" . }}
+  labels:
+    {{- include "openzosma.labels" . | nindent 4 }}
+data:
+  # Database
+  DB_HOST: {{ .Values.postgresql.host | quote }}
+  DB_PORT: {{ .Values.postgresql.port | quote }}
+  DB_NAME: {{ .Values.postgresql.database | quote }}
+  DB_USER: {{ .Values.postgresql.username | quote }}
+  DB_POOL_SIZE: {{ .Values.postgresql.poolSize | quote }}
+
+  # Valkey
+  {{- if .Values.valkey.url }}
+  VALKEY_URL: {{ .Values.valkey.url | quote }}
+  {{- end }}
+
+  # RabbitMQ
+  {{- if .Values.rabbitmq.url }}
+  RABBITMQ_URL: {{ .Values.rabbitmq.url | quote }}
+  {{- end }}
+
+  # Gateway
+  GATEWAY_PORT: {{ .Values.gateway.port | quote }}
+  GATEWAY_HOST: "0.0.0.0"
+  {{- if .Values.auth.url }}
+  PUBLIC_URL: {{ .Values.auth.url | quote }}
+  {{- else }}
+  PUBLIC_URL: {{ printf "http://%s" .Values.ingress.host | quote }}
+  {{- end }}
+
+  # Agent
+  OPENZOSMA_MODEL_PROVIDER: {{ .Values.agent.provider | quote }}
+  OPENZOSMA_MODEL_ID: {{ .Values.agent.modelId | quote }}
+  OPENZOSMA_WORKSPACE: {{ .Values.agent.workspace | quote }}
+
+  # Sandbox / Orchestrator
+  OPENZOSMA_SANDBOX_MODE: {{ .Values.sandbox.mode | quote }}
+  SANDBOX_IMAGE: {{ .Values.sandbox.image | quote }}
+  SANDBOX_AGENT_PORT: {{ .Values.sandbox.agentPort | quote }}
+  MAX_SANDBOXES: {{ .Values.sandbox.maxSandboxes | quote }}
+  SANDBOX_IDLE_SUSPEND_MS: {{ .Values.sandbox.idleSuspendMs | int | quote }}
+  SANDBOX_HEALTH_CHECK_INTERVAL_MS: {{ .Values.sandbox.healthCheckIntervalMs | quote }}
+  SANDBOX_READY_TIMEOUT_MS: {{ .Values.sandbox.readyTimeoutMs | quote }}
+  SANDBOX_POLICY_PATH: {{ .Values.sandbox.policyPath | quote }}
+
+  # Auth
+  {{- if .Values.auth.url }}
+  AUTH_URL: {{ .Values.auth.url | quote }}
+  {{- end }}
+
+  # Web
+  {{- if .Values.web.enabled }}
+  NEXT_PUBLIC_GATEWAY_URL: {{ printf "http://%s-gateway:%d" (include "openzosma.fullname" .) (.Values.gateway.port | int) | quote }}
+  {{- end }}

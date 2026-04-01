@@ -112,6 +112,7 @@ const ChatView = () => {
 							conversation={conversation}
 							participants={participants}
 							filescount={artifacts.length}
+							messagecount={messages.length}
 							onToggleFiles={handleToggleFiles}
 							filespanelopen={filespanelopen}
 						/>

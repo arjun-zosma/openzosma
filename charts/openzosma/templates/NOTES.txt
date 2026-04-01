@@ -1,0 +1,48 @@
+
+OpenZosma has been deployed!
+
+{{- if .Values.ingress.enabled }}
+
+Access the application at:
+{{- if .Values.ingress.tls.enabled }}
+  https://{{ .Values.ingress.host }}
+{{- else }}
+  http://{{ .Values.ingress.host }}
+{{- end }}
+
+Ingress type: {{ .Values.ingress.type }}
+{{- end }}
+
+Components:
+  - Gateway:  {{ include "openzosma.fullname" . }}-gateway (port {{ .Values.gateway.port }})
+{{- if .Values.web.enabled }}
+  - Web:      {{ include "openzosma.fullname" . }}-web (port {{ .Values.web.port }})
+{{- end }}
+
+Sandbox mode: {{ .Values.sandbox.mode }}
+
+{{- if not .Values.postgresql.host }}
+
+WARNING: postgresql.host is not set. The gateway will fail to start without a database connection.
+Set it with: --set postgresql.host=your-db-host
+{{- end }}
+
+{{- if not .Values.auth.secret }}
+
+WARNING: auth.secret is not set. Set a secure random string for session signing:
+  --set auth.secret=$(openssl rand -hex 32)
+{{- end }}
+
+{{- if and (not .Values.llm.anthropicApiKey) (not .Values.llm.openaiApiKey) (not .Values.llm.localModelUrl) }}
+
+WARNING: No LLM API key configured. Set at least one:
+  --set llm.anthropicApiKey=sk-ant-...
+  --set llm.openaiApiKey=sk-...
+  --set llm.localModelUrl=http://your-model:8080/v1
+{{- end }}
+
+Run database migrations:
+  kubectl exec -it deploy/{{ include "openzosma.fullname" . }}-gateway -- npx db-migrate up
+  kubectl exec -it deploy/{{ include "openzosma.fullname" . }}-gateway -- npx db-migrate up --config config/auth-database.json
+
+Documentation: https://github.com/zosmaai/openzosma

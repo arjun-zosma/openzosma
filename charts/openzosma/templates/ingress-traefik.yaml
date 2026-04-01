@@ -1,0 +1,77 @@
+{{- if and .Values.ingress.enabled (eq .Values.ingress.type "traefik") }}
+{{- $fullName := include "openzosma.fullname" . -}}
+{{- $gatewayPort := .Values.gateway.port -}}
+{{- $webPort := .Values.web.port -}}
+{{- $host := .Values.ingress.host -}}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ $fullName }}
+  labels:
+    {{- include "openzosma.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  entryPoints:
+    {{- toYaml .Values.ingress.traefik.entryPoints | nindent 4 }}
+  routes:
+    # Gateway REST API
+    - match: Host(`{{ $host }}`) && PathPrefix(`/api`)
+      kind: Rule
+      services:
+        - name: {{ $fullName }}-gateway
+          port: {{ $gatewayPort }}
+      {{- if .Values.ingress.traefik.middlewares }}
+      middlewares:
+        {{- range .Values.ingress.traefik.middlewares }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+    # A2A protocol
+    - match: Host(`{{ $host }}`) && PathPrefix(`/a2a`)
+      kind: Rule
+      services:
+        - name: {{ $fullName }}-gateway
+          port: {{ $gatewayPort }}
+    # Agent card
+    - match: Host(`{{ $host }}`) && Path(`/.well-known/agent.json`)
+      kind: Rule
+      services:
+        - name: {{ $fullName }}-gateway
+          port: {{ $gatewayPort }}
+    # WebSocket
+    - match: Host(`{{ $host }}`) && PathPrefix(`/ws`)
+      kind: Rule
+      services:
+        - name: {{ $fullName }}-gateway
+          port: {{ $gatewayPort }}
+    {{- if .Values.ingress.traefik.grpc.enabled }}
+    # gRPC
+    - match: Host(`{{ $host }}`) && PathPrefix(`{{ .Values.ingress.traefik.grpc.prefix | default "/openzosma.orchestrator/" }}`)
+      kind: Rule
+      services:
+        - name: {{ $fullName }}-gateway
+          port: {{ .Values.ingress.traefik.grpc.port | default 50051 }}
+          scheme: h2c
+    {{- end }}
+    {{- if .Values.web.enabled }}
+    # Web dashboard (catch-all)
+    - match: Host(`{{ $host }}`)
+      kind: Rule
+      services:
+        - name: {{ $fullName }}-web
+          port: {{ $webPort }}
+      {{- if .Values.ingress.traefik.middlewares }}
+      middlewares:
+        {{- range .Values.ingress.traefik.middlewares }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+{{- end }}

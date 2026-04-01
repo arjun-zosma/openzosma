@@ -624,7 +624,11 @@ const IntegrationsPage = () => {
 								<CardHeader className="pb-3">
 									<div className="flex items-center justify-between">
 										<div className="flex items-center gap-2">
-											<span className="text-xl">{dbinfo?.icon ?? "🔌"}</span>
+											{dbinfo ? (
+												<dbinfo.Icon className="size-5 shrink-0" />
+											) : (
+												<span className="size-5 text-muted-foreground">DB</span>
+											)}
 											<CardTitle className="text-base">{integration.name}</CardTitle>
 										</div>
 										<div className="flex items-center gap-2">
@@ -710,7 +714,7 @@ const IntegrationsPage = () => {
 												: "opacity-50 cursor-not-allowed"
 										}`}
 									>
-										<span className="text-2xl mt-0.5">{db.icon}</span>
+										<db.Icon className="w-6 h-6 mt-0.5 shrink-0" />
 										<div className="flex flex-col gap-0.5 flex-1">
 											<div className="flex items-center justify-between">
 												<span className="font-medium text-sm">{db.name}</span>
@@ -730,7 +734,7 @@ const IntegrationsPage = () => {
 						<>
 							<DialogHeader>
 								<DialogTitle className="flex items-center gap-2">
-									<span className="text-xl">{selecteddb?.icon}</span>
+									{selecteddb && <selecteddb.Icon className="size-5 shrink-0" />}
 									{isEditMode ? "Edit" : "Configure"} {selecteddb?.name}
 								</DialogTitle>
 								<DialogDescription>
@@ -873,22 +877,34 @@ const IntegrationsPage = () => {
 											)}
 										</div>
 										<div className="flex gap-2">
-											<Button
-												variant="outline"
-												onClick={handletestconnection}
-												disabled={!isformvalid || teststate.status === "testing"}
-											>
-												{teststate.status === "testing" ? (
-													<IconLoader2 className="size-4 animate-spin" />
-												) : (
-													<IconPlugConnected className="size-4" />
-												)}
-												{teststate.status === "testing" ? "Testing..." : "Test Connection"}
-											</Button>
-											<Button onClick={handlesave} disabled={!isformvalid || teststate.status !== "success" || saving}>
-												{saving ? <IconLoader2 className="size-4 animate-spin" /> : <IconDatabase className="size-4" />}
-												{saving ? "Saving..." : isEditMode ? "Update Integration" : "Save Integration"}
-											</Button>
+											{teststate.status === "success" ? (
+												<>
+													<Button variant="outline" onClick={handletestconnection} disabled={!isformvalid}>
+														<IconPlugConnected className="size-4" />
+														Re-test
+													</Button>
+													<Button onClick={handlesave} disabled={!isformvalid || saving}>
+														{saving ? (
+															<IconLoader2 className="size-4 animate-spin" />
+														) : (
+															<IconDatabase className="size-4" />
+														)}
+														{saving ? "Saving..." : isEditMode ? "Update Integration" : "Save Integration"}
+													</Button>
+												</>
+											) : (
+												<Button
+													onClick={handletestconnection}
+													disabled={!isformvalid || teststate.status === "testing"}
+												>
+													{teststate.status === "testing" ? (
+														<IconLoader2 className="size-4 animate-spin" />
+													) : (
+														<IconPlugConnected className="size-4" />
+													)}
+													{teststate.status === "testing" ? "Testing..." : "Test Connection"}
+												</Button>
+											)}
 										</div>
 									</div>
 								</>
@@ -913,7 +929,7 @@ const IntegrationsPage = () => {
 						<AlertDialogAction
 							onClick={handledelete}
 							disabled={deleting}
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							className="bg-destructive text-white hover:bg-destructive/90"
 						>
 							{deleting ? <IconLoader2 className="size-4 animate-spin" /> : <IconTrash className="size-4" />}
 							{deleting ? "Deleting..." : "Delete Permanently"}

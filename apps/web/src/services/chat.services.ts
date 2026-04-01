@@ -9,6 +9,7 @@ export type ConversationSummary = {
 	updatedat: string
 	lastmessage: string | null
 	messagecount: number
+	agentname: string | null
 }
 
 export type CreateConversationPayload = {

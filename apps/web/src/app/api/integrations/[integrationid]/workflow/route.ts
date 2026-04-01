@@ -40,7 +40,10 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 			})
 		}
 
-		// Mark as running
+		// Mark as running then immediately complete.
+		// Full schema-indexing workflow is a future enhancement — the integration
+		// is usable immediately via the query_database and list_database_schemas
+		// agent tools without any pre-processing step.
 		await pool.query(
 			`UPDATE public.integrations
        SET workflowstatus = 'running', updatedat = NOW()
@@ -48,8 +51,6 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 			[integrationid],
 		)
 
-		// TODO: Replace with gateway-based integration setup workflow
-		// For now, mark as completed immediately since Mastra workflows have been removed
 		await pool.query(`UPDATE public.integrations SET workflowstatus = 'completed', updatedat = NOW() WHERE id = $1`, [
 			integrationid,
 		])

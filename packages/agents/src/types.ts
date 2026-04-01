@@ -102,6 +102,17 @@ export interface AgentSessionOpts {
 	 * When omitted or empty, all tools are enabled.
 	 */
 	toolsEnabled?: string[]
+	/**
+	 * PostgreSQL pool for the OpenZosma platform DB. When provided, the agent
+	 * session includes query_database and list_database_schemas tools backed by
+	 * the saved integrations in that pool.
+	 */
+	dbPool?: import("pg").Pool
+	/**
+	 * Optional text appended to the system prompt (after a blank line).
+	 * Use to inject session-specific context such as available integrations.
+	 */
+	systemPromptSuffix?: string
 }
 
 /** A single agent session that can exchange messages. */

@@ -23,6 +23,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.71.2(react@19.2.4))
+      '@icons-pack/react-simple-icons':
+        specifier: ^13.13.0
+        version: 13.13.0(react@19.2.4)
       '@openzosma/agents':
         specifier: workspace:*
         version: link:../../packages/agents
@@ -348,12 +351,21 @@ importers:
 
   packages/agents:
     dependencies:
+      '@mariozechner/pi-agent-core':
+        specifier: ^0.61.0
+        version: 0.61.1(ws@8.19.0)(zod@4.3.6)
       '@mariozechner/pi-ai':
         specifier: ^0.61.0
         version: 0.61.1(ws@8.19.0)(zod@4.3.6)
       '@mariozechner/pi-coding-agent':
         specifier: ^0.61.0
         version: 0.61.0(ws@8.19.0)(zod@4.3.6)
+      '@openzosma/db':
+        specifier: workspace:*
+        version: link:../db
+      '@openzosma/integrations':
+        specifier: workspace:*
+        version: link:../integrations
       '@openzosma/logger':
         specifier: workspace:*
         version: link:../logger
@@ -366,6 +378,9 @@ importers:
       dotenv:
         specifier: 17.3.1
         version: 17.3.1
+      pg:
+        specifier: ^8.13.1
+        version: 8.20.0
       uuid:
         specifier: ^13.0.0
         version: 13.0.0
@@ -373,6 +388,9 @@ importers:
       '@types/node':
         specifier: ^22.15.2
         version: 22.19.15
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.18.0
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
@@ -537,6 +555,28 @@ importers:
       tsx:
         specifier: ^4.19.3
         version: 4.21.0
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  packages/integrations:
+    dependencies:
+      '@openzosma/db':
+        specifier: workspace:*
+        version: link:../db
+      '@openzosma/logger':
+        specifier: workspace:*
+        version: link:../logger
+      mysql2:
+        specifier: ^3.11.0
+        version: 3.20.0(@types/node@22.19.15)
+      pg:
+        specifier: ^8.13.1
+        version: 8.20.0
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.18.0
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
@@ -1201,6 +1241,12 @@ packages:
 
   '@iconify/utils@3.1.0':
     resolution: {integrity: sha512-Zlzem1ZXhI1iHeeERabLNzBHdOa4VhQbqAcOQaMKuTuyZCpwKbC2R4Dd0Zo3g9EAc+Y4fiarO8HIHRAth7+skw==}
+
+  '@icons-pack/react-simple-icons@13.13.0':
+    resolution: {integrity: sha512-B5HhQMIpcSH4z8IZ8HFhD59CboHceKYMpPC9kAwGyKntvPdyJJv26DLu4Z1wAjcCLyrJhf11tMhiQGom9Rxb9g==}
+    engines: {node: '>=24', pnpm: '>=10'}
+    peerDependencies:
+      react: ^16.13 || ^17 || ^18 || ^19
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -7133,6 +7179,10 @@ snapshots:
       '@antfu/install-pkg': 1.1.0
       '@iconify/types': 2.0.0
       mlly: 1.8.1
+
+  '@icons-pack/react-simple-icons@13.13.0(react@19.2.4)':
+    dependencies:
+      react: 19.2.4
 
   '@img/colour@1.1.0':
     optional: true

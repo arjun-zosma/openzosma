@@ -1,0 +1,60 @@
+{{- if and .Values.ingress.enabled (eq .Values.ingress.type "ingress") }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "openzosma.fullname" . }}
+  labels:
+    {{- include "openzosma.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "openzosma.fullname" . }}-gateway
+                port:
+                  number: {{ .Values.gateway.port }}
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "openzosma.fullname" . }}-gateway
+                port:
+                  number: {{ .Values.gateway.port }}
+          - path: /a2a
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "openzosma.fullname" . }}-gateway
+                port:
+                  number: {{ .Values.gateway.port }}
+          - path: /.well-known/agent.json
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "openzosma.fullname" . }}-gateway
+                port:
+                  number: {{ .Values.gateway.port }}
+          {{- if .Values.web.enabled }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "openzosma.fullname" . }}-web
+                port:
+                  number: {{ .Values.web.port }}
+          {{- end }}
+{{- end }}

@@ -1,0 +1,18 @@
+apiVersion: v2
+name: openzosma
+description: Self-hosted AI agent platform with sandboxed execution
+type: application
+version: 0.1.0
+appVersion: "0.0.4"
+home: https://github.com/zosmaai/openzosma
+sources:
+  - https://github.com/zosmaai/openzosma
+keywords:
+  - ai
+  - agents
+  - sandbox
+  - llm
+  - self-hosted
+maintainers:
+  - name: zosmaai
+    url: https://zosma.ai

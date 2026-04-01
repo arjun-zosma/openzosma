@@ -1,0 +1,153 @@
+# =============================================================================
+# OpenZosma Helm Chart - values.yaml
+# =============================================================================
+
+# -- Gateway (Hono HTTP server)
+gateway:
+  image:
+    repository: openzosma/gateway
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 4000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPU: 80
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -- Web Dashboard (Next.js)
+web:
+  enabled: true
+  image:
+    repository: openzosma/web
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPU: 80
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -- Sandbox / Orchestrator
+sandbox:
+  # "local" = pi-agent runs in-process inside gateway (dev)
+  # "orchestrator" = per-user OpenShell sandboxes (production)
+  mode: local
+  image: openzosma/sandbox-server:latest
+  agentPort: 8080
+  maxSandboxes: 0           # 0 = unlimited
+  idleSuspendMs: 1800000    # 30 min
+  healthCheckIntervalMs: 60000
+  readyTimeoutMs: 300000
+  policyPath: /app/policies/default.yaml
+
+# -- Agent / LLM
+agent:
+  provider: anthropic       # anthropic | openai | google | groq | xai | mistral | local
+  modelId: claude-sonnet-4-20250514
+  workspace: /workspace
+
+# -- LLM API Keys (stored in Secret)
+llm:
+  anthropicApiKey: ""
+  openaiApiKey: ""
+  # Local/self-hosted model (Ollama, vLLM, llama.cpp, etc.)
+  localModelUrl: ""
+  localModelId: ""
+  localModelApiKey: ""
+
+# -- Auth (Better Auth)
+auth:
+  secret: ""                # REQUIRED - session signing key
+  encryptionKey: ""         # AES-256 key for stored credentials
+  url: ""                   # Public URL, e.g. https://openzosma.example.com
+  google:
+    clientId: ""
+    clientSecret: ""
+  github:
+    clientId: ""
+    clientSecret: ""
+
+# -- PostgreSQL (external, user-managed)
+postgresql:
+  host: ""                  # REQUIRED
+  port: 5432
+  database: openzosma
+  username: openzosma
+  password: ""              # or use existingSecret
+  existingSecret: ""        # K8s secret name, must have key "password"
+  poolSize: 20
+
+# -- Valkey / Redis (external, user-managed)
+valkey:
+  url: ""                   # redis://host:6379
+
+# -- RabbitMQ (external, user-managed)
+rabbitmq:
+  url: ""                   # amqp://user:pass@host:5672
+
+# -- Ingress
+ingress:
+  enabled: false              # set true to create ingress resources
+  # "traefik" = Traefik IngressRoute CRD
+  # "emissary" = Emissary Mapping CRD (v2)
+  # "ingress" = Standard K8s Ingress resource
+  type: traefik
+  host: openzosma.example.com
+  tls:
+    enabled: false
+    secretName: ""
+  annotations: {}
+  # Traefik-specific
+  traefik:
+    entryPoints:
+      - websecure
+    middlewares: []
+    grpc:
+      enabled: false        # enable when gRPC orchestrator is wired
+      prefix: /openzosma.orchestrator/
+      port: 50051
+  # Emissary-specific (v2 API)
+  emissary:
+    prefix: /
+    timeoutMs: 15000
+    idleTimeoutMs: 300000   # long timeout for WebSocket
+    allowUpgrade: true      # WebSocket upgrade support
+    grpc:
+      enabled: false        # enable when gRPC orchestrator is wired
+      prefix: /openzosma.orchestrator/
+      port: 50051
+
+# -- Service Account
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# -- Common
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []

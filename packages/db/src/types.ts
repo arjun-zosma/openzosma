@@ -57,6 +57,33 @@ export interface Connection {
 	updatedAt: Date
 }
 
+// -- Integrations --
+
+export type IntegrationStatus = "inactive" | "active" | "error"
+
+/** Encrypted connection config as stored in the integrations table. */
+export interface IntegrationConfig {
+	host: string
+	port: string | number
+	database: string
+	username: string
+	password: string
+	ssl: boolean
+}
+
+export interface Integration {
+	id: string
+	organizationId: string
+	teamId: string
+	name: string
+	type: string
+	config: IntegrationConfig
+	status: IntegrationStatus
+	createdBy: string
+	createdAt: Date
+	updatedAt: Date
+}
+
 // -- Settings --
 
 export interface Setting {

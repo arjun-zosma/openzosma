@@ -4,7 +4,6 @@ import { App } from "@slack/bolt"
 import type {
 	AdapterGatewayEvent,
 	AdapterSessionManager,
-	ChannelAdapter,
 	SlackChannelInfo,
 	SlackMessageContext,
 	SlackThreadMessage,
@@ -109,6 +108,29 @@ Each message you receive will be prefixed with a <slack-context> block containin
 
 <advanced>For advanced commands, full flag reference, and additional examples, read the skill file at \`/app/skills/agent-slack.md\`.</advanced>
 </tool>`
+
+// ─── Inlined types (originally from @openzosma/gateway) ──────────────────────
+// These are duplicated here to avoid a circular workspace dependency:
+// adapter-slack → gateway → adapter-slack.
+
+interface ChannelAdapter {
+	readonly name: string
+	init(sessionManager: SlackSessionManager): Promise<void>
+	shutdown(): Promise<void>
+}
+
+interface SlackSessionManager {
+	createSession(userId?: string, agentConfigId?: string): Promise<{ id: string }>
+	sendMessage(sessionId: string, content: string, signal?: AbortSignal): AsyncIterable<SlackGatewayEvent>
+}
+
+interface SlackGatewayEvent {
+	type: string
+	text?: string
+	error?: string
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface SlackAdapterConfig {
 	botToken: string

@@ -1,0 +1,106 @@
+{{- if and .Values.ingress.enabled (eq .Values.ingress.type "emissary") }}
+{{- $fullName := include "openzosma.fullname" . -}}
+{{- $gatewayPort := .Values.gateway.port -}}
+{{- $webPort := .Values.web.port -}}
+{{- $ns := .Release.Namespace -}}
+{{- $host := .Values.ingress.host -}}
+{{- $timeout := .Values.ingress.emissary.timeoutMs -}}
+{{- $idleTimeout := .Values.ingress.emissary.idleTimeoutMs -}}
+# Gateway REST API
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  name: {{ $fullName }}-rest
+  namespace: {{ $ns }}
+  labels:
+    {{- include "openzosma.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ $host }}
+  prefix: /api/
+  service: {{ $fullName }}-gateway.{{ $ns }}:{{ $gatewayPort }}
+  timeout_ms: {{ $timeout }}
+---
+# A2A protocol
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  name: {{ $fullName }}-a2a
+  namespace: {{ $ns }}
+  labels:
+    {{- include "openzosma.labels" . | nindent 4 }}
+spec:
+  host: {{ $host }}
+  prefix: /a2a
+  service: {{ $fullName }}-gateway.{{ $ns }}:{{ $gatewayPort }}
+  timeout_ms: {{ $timeout }}
+---
+# Agent card
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  name: {{ $fullName }}-agent-card
+  namespace: {{ $ns }}
+  labels:
+    {{- include "openzosma.labels" . | nindent 4 }}
+spec:
+  host: {{ $host }}
+  prefix: /.well-known/agent.json
+  service: {{ $fullName }}-gateway.{{ $ns }}:{{ $gatewayPort }}
+  timeout_ms: {{ $timeout }}
+---
+# WebSocket
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  name: {{ $fullName }}-ws
+  namespace: {{ $ns }}
+  labels:
+    {{- include "openzosma.labels" . | nindent 4 }}
+spec:
+  host: {{ $host }}
+  prefix: /ws
+  service: {{ $fullName }}-gateway.{{ $ns }}:{{ $gatewayPort }}
+  timeout_ms: {{ $idleTimeout }}
+  {{- if .Values.ingress.emissary.allowUpgrade }}
+  allow_upgrade:
+    - websocket
+  {{- end }}
+{{- if .Values.ingress.emissary.grpc.enabled }}
+---
+# gRPC (orchestrator)
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  name: {{ $fullName }}-grpc
+  namespace: {{ $ns }}
+  labels:
+    {{- include "openzosma.labels" . | nindent 4 }}
+spec:
+  host: {{ $host }}
+  prefix: {{ .Values.ingress.emissary.grpc.prefix | default "/openzosma.orchestrator/" }}
+  service: {{ $fullName }}-gateway.{{ $ns }}:{{ .Values.ingress.emissary.grpc.port | default 50051 }}
+  grpc: true
+  rewrite: ""
+  timeout_ms: {{ $timeout }}
+{{- end }}
+{{- if .Values.web.enabled }}
+---
+# Web dashboard (catch-all, lowest precedence)
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  name: {{ $fullName }}-web
+  namespace: {{ $ns }}
+  labels:
+    {{- include "openzosma.labels" . | nindent 4 }}
+spec:
+  host: {{ $host }}
+  prefix: /
+  service: {{ $fullName }}-web.{{ $ns }}:{{ $webPort }}
+  timeout_ms: {{ $timeout }}
+{{- end }}
+{{- end }}
