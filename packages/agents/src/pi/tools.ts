@@ -12,10 +12,25 @@ import type { ToolDefinition } from "@mariozechner/pi-coding-agent"
 import { integrationQueries } from "@openzosma/db"
 import type { IntegrationConfig } from "@openzosma/db"
 import { executequery, getschema, safeDecrypt } from "@openzosma/integrations"
+import {
+	createReportExecuteCodeTool,
+	createReportGenerateTool,
+	createReportListTemplatesTool,
+} from "@openzosma/skill-reports"
 import { Type } from "@sinclair/typebox"
 import type pg from "pg"
 
-export type BuiltInToolName = "read" | "bash" | "edit" | "write" | "grep" | "find" | "ls"
+export type BuiltInToolName =
+	| "read"
+	| "bash"
+	| "edit"
+	| "write"
+	| "grep"
+	| "find"
+	| "ls"
+	| "report_list_templates"
+	| "report_generate"
+	| "report_execute_code"
 
 export const createDefaultTools = (workspaceDir: string, toolsEnabled?: string[]) => {
 	const allTools = [
@@ -26,6 +41,9 @@ export const createDefaultTools = (workspaceDir: string, toolsEnabled?: string[]
 		{ name: "grep", tool: createGrepTool(workspaceDir) },
 		{ name: "find", tool: createFindTool(workspaceDir) },
 		{ name: "ls", tool: createLsTool(workspaceDir) },
+		{ name: "report_list_templates", tool: createReportListTemplatesTool() },
+		{ name: "report_generate", tool: createReportGenerateTool() },
+		{ name: "report_execute_code", tool: createReportExecuteCodeTool() },
 	] as const
 
 	if (!toolsEnabled || toolsEnabled.length === 0) {

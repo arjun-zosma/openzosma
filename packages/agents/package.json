@@ -29,6 +29,7 @@
 		"uuid": "^13.0.0",
 		"@openzosma/db": "workspace:*",
 		"@openzosma/integrations": "workspace:*",
+		"@openzosma/skill-reports": "workspace:*",
 		"pg": "^8.13.1",
 		"@mariozechner/pi-agent-core": "^0.61.0"
 	},
