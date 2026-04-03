@@ -16,6 +16,7 @@ export type {
 	Setting,
 	UserSandbox,
 	SandboxStatus,
+	Skill,
 } from "./types.js"
 
 // Queries
@@ -26,3 +27,4 @@ export * as connectionQueries from "./queries/connections.js"
 export * as integrationQueries from "./queries/integrations.js"
 export * as settingQueries from "./queries/settings.js"
 export * as userSandboxQueries from "./queries/user-sandboxes.js"
+export * as skillQueries from "./queries/skills.js"

@@ -54,10 +54,7 @@ COPY packages/memory/package.json packages/memory/
 RUN pnpm install --frozen-lockfile
 
 # Copy source and build
-COPY packages/logger/ packages/logger/
-COPY packages/agents/ packages/agents/
-COPY packages/memory/ packages/memory/
-COPY packages/sandbox-server/ packages/sandbox-server/
+COPY packages/ packages/
 
 RUN pnpm --filter @openzosma/logger run build
 RUN pnpm --filter @openzosma/agents run build

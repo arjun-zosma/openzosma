@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process"
 import {
 	type Stats,
 	existsSync,
@@ -27,6 +28,7 @@ const log = createLogger({ component: "sandbox-server" })
  */
 const WORKSPACE_DIR = process.env.OPENZOSMA_WORKSPACE ?? "/workspace"
 const KB_DIR = join(WORKSPACE_DIR, ".knowledge-base")
+const SKILLS_DIR = join(WORKSPACE_DIR, ".skills")
 const USER_FILES_DIR = join(WORKSPACE_DIR, "user-files")
 const OUTPUT_DIR = "output"
 
@@ -134,6 +136,16 @@ const buildTree = (dir: string): UserFileEntry[] => {
 const resolveKBPath = (relativePath: string): string | null => {
 	const resolved = resolve(KB_DIR, normalize(relativePath))
 	if (!resolved.startsWith(KB_DIR)) return null
+	return resolved
+}
+
+/**
+ * Resolve a skill filename within the skills directory.
+ * Returns null if the resolved path escapes the skills root (path traversal).
+ */
+const resolveSkillsPath = (filename: string): string | null => {
+	const resolved = resolve(SKILLS_DIR, normalize(filename))
+	if (!resolved.startsWith(SKILLS_DIR)) return null
 	return resolved
 }
 
@@ -491,6 +503,133 @@ export function createSandboxApp(): Hono {
 
 		rmSync(resolved, { recursive: true, force: true })
 		return c.json({ ok: true, path: filePath })
+	})
+
+	// -----------------------------------------------------------------------
+	// Skills CRUD
+	// -----------------------------------------------------------------------
+
+	/**
+	 * GET /skills -- list all skill files.
+	 *
+	 * Returns all .md files under /workspace/.skills/.
+	 */
+	app.get("/skills", (c) => {
+		if (!existsSync(SKILLS_DIR)) {
+			return c.json({ files: [] })
+		}
+
+		let dirents: string[]
+		try {
+			dirents = readdirSync(SKILLS_DIR)
+		} catch {
+			return c.json({ files: [] })
+		}
+
+		const files = dirents
+			.filter((name) => name.endsWith(".md"))
+			.map((name) => ({
+				name: name.replace(/\.md$/, ""),
+				path: name,
+			}))
+
+		return c.json({ files })
+	})
+
+	/**
+	 * POST /skills/install -- install an npm package skill in the sandbox.
+	 *
+	 * Runs `npm install <packageSpecifier>` in the workspace directory.
+	 * Body: { packageSpecifier: string }
+	 */
+	app.post("/skills/install", async (c) => {
+		let body: { packageSpecifier: string }
+		try {
+			body = await c.req.json<{ packageSpecifier: string }>()
+		} catch {
+			return c.json({ error: "Invalid request body" }, 400)
+		}
+
+		if (!body.packageSpecifier || typeof body.packageSpecifier !== "string") {
+			return c.json({ error: "packageSpecifier is required" }, 400)
+		}
+
+		const specifier = body.packageSpecifier.trim()
+		if (!/^[@a-z0-9][\w./@-]*$/i.test(specifier)) {
+			return c.json({ error: "Invalid package specifier" }, 400)
+		}
+
+		try {
+			execSync(`npm install ${specifier}`, {
+				cwd: WORKSPACE_DIR,
+				stdio: "pipe",
+				timeout: 120_000,
+			})
+			return c.json({ ok: true, package: specifier })
+		} catch (err) {
+			const message = err instanceof Error ? err.message : "Unknown install error"
+			log.error("npm install failed", { package: specifier, error: message })
+			return c.json({ error: `Installation failed: ${message}` }, 500)
+		}
+	})
+
+	/**
+	 * PUT /skills/:skillName -- create or update a skill file.
+	 *
+	 * Writes content to /workspace/.skills/<skillName>.md.
+	 * Body: { content: string }
+	 */
+	app.put("/skills/:skillName", async (c) => {
+		const skillName = c.req.param("skillName")
+		if (!skillName) {
+			return c.json({ error: "Skill name is required" }, 400)
+		}
+
+		const filename = `${skillName}.md`
+		const resolved = resolveSkillsPath(filename)
+		if (!resolved) {
+			return c.json({ error: "Invalid skill name (traversal detected)" }, 400)
+		}
+
+		let body: { content: string }
+		try {
+			body = await c.req.json<{ content: string }>()
+		} catch {
+			return c.json({ error: "Invalid request body" }, 400)
+		}
+
+		if (typeof body.content !== "string") {
+			return c.json({ error: "content must be a string" }, 400)
+		}
+
+		mkdirSync(SKILLS_DIR, { recursive: true })
+		writeFileSync(resolved, body.content, "utf-8")
+		return c.json({ ok: true, name: skillName, path: filename })
+	})
+
+	/**
+	 * DELETE /skills/:skillName -- delete a skill file.
+	 *
+	 * Removes /workspace/.skills/<skillName>.md.
+	 */
+	app.delete("/skills/:skillName", (c) => {
+		const skillName = c.req.param("skillName")
+		if (!skillName) {
+			return c.json({ error: "Skill name is required" }, 400)
+		}
+
+		const filename = `${skillName}.md`
+		const resolved = resolveSkillsPath(filename)
+		if (!resolved) {
+			return c.json({ error: "Invalid skill name (traversal detected)" }, 400)
+		}
+
+		if (!existsSync(resolved)) {
+			return c.json({ error: "Skill file not found" }, 404)
+		}
+
+		rmSync(resolved, { force: true })
+		return c.json({ ok: true, name: skillName })
 	})
 
 	// -----------------------------------------------------------------------

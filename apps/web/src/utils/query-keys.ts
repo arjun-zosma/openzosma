@@ -7,4 +7,5 @@ export const QUERY_KEYS = {
 	ARTIFACT_CONTENT: "artifact-content",
 	FILES_TREE: "files-tree",
 	FILES_LIST: "files-list",
+	SKILL: "skill",
 }

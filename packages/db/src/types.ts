@@ -107,3 +107,19 @@ export interface UserSandbox {
 	suspendedAt: Date | null
 	metadata: Record<string, unknown>
 }
+
+// -- Skills --
+
+export interface Skill {
+	id: string
+	name: string
+	description: string
+	type: "builtin" | "marketplace" | "custom"
+	source: "file" | "npm"
+	content: string | null
+	packageSpecifier: string | null
+	config: { requires?: string[]; envVars?: string[] }
+	installedBy: string | null
+	createdAt: Date
+	updatedAt: Date
+}

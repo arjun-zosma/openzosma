@@ -159,3 +159,20 @@ export interface UserFileEntry {
 export interface UserFilesListResponse {
 	entries: UserFileEntry[]
 }
+
+// ---------------------------------------------------------------------------
+// Skill file types (mirror sandbox-server types)
+// ---------------------------------------------------------------------------
+
+/** A single file in the sandbox skills directory. */
+export interface SkillFileEntry {
+	/** Skill name (without .md extension). */
+	name: string
+	/** Filename within .skills/ */
+	path: string
+}
+
+/** Response for GET /skills */
+export interface SkillFilesListResponse {
+	files: SkillFileEntry[]
+}

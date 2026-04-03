@@ -8,6 +8,8 @@ import type {
 	SandboxHealthResponse,
 	SandboxSessionInfo,
 	SandboxSessionListResponse,
+	SkillFileEntry,
+	SkillFilesListResponse,
 	UserFileEntry,
 	UserFilesListResponse,
 } from "./types.js"
@@ -217,6 +219,74 @@ export class SandboxHttpClient {
 		const res = await this.fetch(`/kb/${path}`, { method: "DELETE" })
 		if (!res.ok && res.status !== 404) {
 			throw new Error(`Sandbox deleteKBFile failed (${res.status})`)
+		}
+	}
+
+	// -----------------------------------------------------------------------
+	// Skills
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Write a skill SKILL.md file into the sandbox.
+	 */
+	async writeSkillFile(skillName: string, content: string): Promise<void> {
+		const res = await this.fetch(`/skills/${encodeURIComponent(skillName)}`, {
+			method: "PUT",
+			body: JSON.stringify({ content }),
+		})
+		if (!res.ok) {
+			let detail: string
+			try {
+				const body = (await res.json()) as { error?: string }
+				detail = body.error ?? `HTTP ${res.status}`
+			} catch {
+				detail = await res.text().catch(() => `HTTP ${res.status}`)
+			}
+			throw new Error(`Sandbox writeSkillFile failed (${res.status}): ${detail}`)
+		}
+	}
+
+	/**
+	 * Delete a skill file from the sandbox.
+	 */
+	async deleteSkillFile(skillName: string): Promise<void> {
+		const res = await this.fetch(`/skills/${encodeURIComponent(skillName)}`, { method: "DELETE" })
+		if (!res.ok && res.status !== 404) {
+			throw new Error(`Sandbox deleteSkillFile failed (${res.status})`)
+		}
+	}
+
+	/**
+	 * List all skill files in the sandbox.
+	 */
+	async listSkillFiles(): Promise<SkillFileEntry[]> {
+		const res = await this.fetch("/skills")
+		if (!res.ok) {
+			throw new Error(`Sandbox listSkillFiles failed (${res.status})`)
+		}
+		const body = (await res.json()) as SkillFilesListResponse
+		return body.files
+	}
+
+	/**
+	 * Install an npm package skill in the sandbox.
+	 * Runs `npm install <packageSpecifier>` inside the sandbox workspace.
+	 */
+	async installSkillPackage(packageSpecifier: string): Promise<void> {
+		const res = await this.fetch("/skills/install", {
+			method: "POST",
+			body: JSON.stringify({ packageSpecifier }),
+			timeout: 120_000,
+		})
+		if (!res.ok) {
+			let detail: string
+			try {
+				const body = (await res.json()) as { error?: string }
+				detail = body.error ?? `HTTP ${res.status}`
+			} catch {
+				detail = await res.text().catch(() => `HTTP ${res.status}`)
+			}
+			throw new Error(`Sandbox installSkillPackage failed (${res.status}): ${detail}`)
 		}
 	}
 

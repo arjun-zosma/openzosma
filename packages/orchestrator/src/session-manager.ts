@@ -1,14 +1,25 @@
 import { randomUUID } from "node:crypto"
 import type { AgentStreamEvent } from "@openzosma/agents"
-import type { Pool } from "@openzosma/db"
-import { agentConfigQueries, userSandboxQueries } from "@openzosma/db"
-import type { UserSandbox } from "@openzosma/db"
+import type { AgentConfig, Pool, Skill, UserSandbox } from "@openzosma/db"
+import { agentConfigQueries, skillQueries, userSandboxQueries } from "@openzosma/db"
 import { createLogger } from "@openzosma/logger"
 import type { SandboxHttpClient } from "./sandbox-http-client.js"
 import type { SandboxManager } from "./sandbox-manager.js"
 import type { KBFileEntry, OrchestratorSession, UserFileEntry } from "./types.js"
 
 const log = createLogger({ component: "orchestrator" })
+
+/**
+ * Build a system prompt prefix listing the agent's available skills
+ * and their file paths in the sandbox.
+ */
+const buildSkillsPrefix = (skills: Skill[]): string | null => {
+	const fileSkills = skills.filter((s): s is Skill & { content: string } => s.source === "file" && s.content !== null)
+	if (fileSkills.length === 0) return null
+
+	const lines = fileSkills.map((s) => `- ${s.name}: /workspace/.skills/${s.name}.md`)
+	return `You have the following skills available. Read the skill file before using a capability:\n${lines.join("\n")}`
+}
 
 /**
  * Orchestrator session manager.
@@ -71,6 +82,7 @@ export class OrchestratorSessionManager {
 			systemPromptPrefix?: string
 			toolsEnabled?: string[]
 		} = {}
+		let agentConfigRecord: AgentConfig | null = null
 
 		if (opts?.resolvedConfig) {
 			agentConfig = {
@@ -78,19 +90,90 @@ export class OrchestratorSessionManager {
 				systemPrompt: opts.resolvedConfig.systemPrompt ?? undefined,
 			}
 		} else if (opts?.agentConfigId && this.pool) {
-			const config = await agentConfigQueries.getAgentConfig(this.pool, opts.agentConfigId)
-			if (config) {
+			agentConfigRecord = await agentConfigQueries.getAgentConfig(this.pool, opts.agentConfigId)
+			if (agentConfigRecord) {
 				agentConfig = {
-					provider: config.provider,
-					model: config.model,
-					systemPrompt: config.systemPrompt ?? undefined,
-					toolsEnabled: config.toolsEnabled,
+					provider: agentConfigRecord.provider,
+					model: agentConfigRecord.model,
+					systemPrompt: agentConfigRecord.systemPrompt ?? undefined,
+					toolsEnabled: agentConfigRecord.toolsEnabled,
 				}
 			}
 		}
 
 		// Create the session inside the sandbox via HTTP
 		const client = this.sandboxManager.getHttpClient(userId)
+
+		// Load and inject skills into sandbox.
+		// OPENZOSMA_INJECT_ALL_SKILLS=true bypasses agent config skill assignment and loads every skill
+		// from the DB — useful during local development before agent config UI is wired up.
+		let skills: Skill[] = []
+		if (agentConfigRecord?.skills && agentConfigRecord.skills.length > 0) {
+			skills = await skillQueries.getSkillsByIds(this.pool, agentConfigRecord.skills)
+		} else if (process.env.OPENZOSMA_INJECT_ALL_SKILLS === "true") {
+			skills = await skillQueries.listSkills(this.pool)
+		}
+		if (skills.length > 0) {
+			for (const skill of skills) {
+				if (skill.source !== "file" || !skill.content) continue
+				try {
+					await client.writeSkillFile(skill.name, skill.content)
+				} catch (err) {
+					log.warn("Failed to write skill file to sandbox", {
+						skillName: skill.name,
+						error: err instanceof Error ? err.message : String(err),
+					})
+				}
+			}
+
+			for (const skill of skills) {
+				if (skill.source !== "npm" || !skill.packageSpecifier) continue
+				try {
+					await client.installSkillPackage(skill.packageSpecifier)
+				} catch (err) {
+					log.warn("Failed to install npm skill package in sandbox", {
+						skillName: skill.name,
+						packageSpecifier: skill.packageSpecifier,
+						error: err instanceof Error ? err.message : String(err),
+					})
+				}
+			}
+
+			// Inject integration metadata for skills that declare requirements
+			const requiredTypes = new Set<string>()
+			for (const skill of skills) {
+				const requires = skill.config?.requires
+				if (requires) {
+					for (const req of requires) requiredTypes.add(req)
+				}
+			}
+
+			if (requiredTypes.size > 0) {
+				try {
+					const typesArray = Array.from(requiredTypes)
+					const integrations = await this.pool.query(
+						"SELECT type, name FROM public.integrations WHERE type = ANY($1::text[]) AND status = 'active'",
+						[typesArray],
+					)
+					if (integrations.rows.length > 0) {
+						const integrationsMeta = integrations.rows.map((r: { type: string; name: string }) => ({
+							type: r.type,
+							name: r.name,
+						}))
+						await client.writeSkillFile("_integrations", JSON.stringify(integrationsMeta, null, 2))
+					}
+				} catch (err) {
+					log.warn("Failed to inject integration metadata for skills", {
+						error: err instanceof Error ? err.message : String(err),
+					})
+				}
+			}
+
+			const skillsPrefix = buildSkillsPrefix(skills)
+			if (skillsPrefix) {
+				agentConfig.systemPromptPrefix = [skillsPrefix, agentConfig.systemPromptPrefix].filter(Boolean).join("\n\n")
+			}
+		}
 
 		log.info("Orchestrator: forwarding createSession to sandbox", {
 			sessionId,

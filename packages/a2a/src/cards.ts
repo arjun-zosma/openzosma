@@ -1,16 +1,12 @@
 import { type AgentConfig, type Pool, agentConfigQueries, settingQueries } from "@openzosma/db"
-import type { AgentCard, AgentSkill } from "a2a-js"
-import { SKILL_METADATA } from "./skills.js"
+import type { AgentCard } from "a2a-js"
+import { resolveSkillsMetadata } from "./skills.js"
 
 export async function buildAgentCardForConfig(pool: Pool, config: AgentConfig): Promise<AgentCard> {
 	const publicUrl = await settingQueries.getSettingValue<string>(pool, "public_url")
 	const base = publicUrl ?? process.env.PUBLIC_URL ?? "http://localhost:4000"
 
-	const skills: AgentSkill[] = config.skills.map((id) => ({
-		id,
-		name: SKILL_METADATA[id]?.name ?? id,
-		description: SKILL_METADATA[id]?.description ?? null,
-	}))
+	const skills = await resolveSkillsMetadata(pool, config.skills)
 
 	return {
 		name: config.name,
