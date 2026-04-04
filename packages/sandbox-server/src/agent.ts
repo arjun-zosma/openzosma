@@ -98,6 +98,8 @@ export class SandboxAgentManager {
 	private snapshots = new Map<string, Map<string, FileSnapshot>>()
 	/** Human-readable folder name per session, derived from the first user message. */
 	private sessionLabels = new Map<string, string>()
+	/** Abort controllers for active turns, keyed by sessionId. */
+	private activeTurnControllers = new Map<string, AbortController>()
 
 	/**
 	 * Create a new agent session.
@@ -163,6 +165,19 @@ export class SandboxAgentManager {
 			this.sessionLabels.set(sessionId, sanitizeFolderName(content, sessionId))
 		}
 
+		// Create an internal controller for this turn so cancelSession() can abort
+		// it independently of the SSE stream disconnect signal.
+		const turnController = new AbortController()
+		this.activeTurnControllers.set(sessionId, turnController)
+
+		// Propagate the external abort signal (SSE client disconnect) into the turn controller.
+		const onExternalAbort = () => turnController.abort()
+		if (signal?.aborted) {
+			turnController.abort()
+		} else {
+			signal?.addEventListener("abort", onExternalAbort, { once: true })
+		}
+
 		// Take initial snapshot for artifact detection
 		let snapshot = this.snapshots.get(sessionId) ?? createSnapshot(WORKSPACE_DIR)
 
@@ -170,48 +185,53 @@ export class SandboxAgentManager {
 		let yieldCount = 0
 		log.info("[DIAG-AGM] starting for-await on session.sendMessage()", { sessionId })
 
-		for await (const event of session.sendMessage(content, signal)) {
-			yieldCount++
-			if (event.type !== "message_update" && event.type !== "thinking_update" && event.type !== "tool_call_update") {
-				log.info("[DIAG-AGM] received event from PiAgentSession", {
-					sessionId,
-					yieldCount,
-					type: event.type,
-					ms: Date.now() - t0,
-				})
-			}
-			yield event
-
-			// After a tool call ends, scan for new output files
-			if (event.type === "tool_call_end") {
-				const scanStart = Date.now()
-				const result = this.scanForArtifacts(sessionId, snapshot)
-				const scanMs = Date.now() - scanStart
-				if (scanMs > 100) {
-					log.warn("[DIAG-AGM] slow artifact scan", { sessionId, scanMs })
+		try {
+			for await (const event of session.sendMessage(content, turnController.signal)) {
+				yieldCount++
+				if (event.type !== "message_update" && event.type !== "thinking_update" && event.type !== "tool_call_update") {
+					log.info("[DIAG-AGM] received event from PiAgentSession", {
+						sessionId,
+						yieldCount,
+						type: event.type,
+						ms: Date.now() - t0,
+					})
 				}
-				if (result) {
-					snapshot = result.newSnapshot
-					yield { type: "file_output", artifacts: result.artifacts }
+				yield event
+
+				// After a tool call ends, scan for new output files
+				if (event.type === "tool_call_end") {
+					const scanStart = Date.now()
+					const result = this.scanForArtifacts(sessionId, snapshot)
+					const scanMs = Date.now() - scanStart
+					if (scanMs > 100) {
+						log.warn("[DIAG-AGM] slow artifact scan", { sessionId, scanMs })
+					}
+					if (result) {
+						snapshot = result.newSnapshot
+						yield { type: "file_output", artifacts: result.artifacts }
+					}
 				}
 			}
+
+			log.info("[DIAG-AGM] for-await loop completed", {
+				sessionId,
+				yieldCount,
+				durationMs: Date.now() - t0,
+			})
+
+			// Final scan after the turn completes to catch stragglers
+			const finalResult = this.scanForArtifacts(sessionId, snapshot)
+			if (finalResult) {
+				snapshot = finalResult.newSnapshot
+				yield { type: "file_output", artifacts: finalResult.artifacts }
+			}
+
+			// Persist snapshot for next turn
+			this.snapshots.set(sessionId, snapshot)
+		} finally {
+			signal?.removeEventListener("abort", onExternalAbort)
+			this.activeTurnControllers.delete(sessionId)
 		}
-
-		log.info("[DIAG-AGM] for-await loop completed", {
-			sessionId,
-			yieldCount,
-			durationMs: Date.now() - t0,
-		})
-
-		// Final scan after the turn completes to catch stragglers
-		const finalResult = this.scanForArtifacts(sessionId, snapshot)
-		if (finalResult) {
-			snapshot = finalResult.newSnapshot
-			yield { type: "file_output", artifacts: finalResult.artifacts }
-		}
-
-		// Persist snapshot for next turn
-		this.snapshots.set(sessionId, snapshot)
 	}
 
 	/**
@@ -238,6 +258,24 @@ export class SandboxAgentManager {
 	}
 
 	/**
+	 * Cancel the active turn for a session.
+	 *
+	 * Aborts the in-flight LLM call / tool execution without destroying the
+	 * session or its message history. The session remains usable for further
+	 * messages after cancellation.
+	 *
+	 * Returns true if there was an active turn to cancel, false if the session
+	 * has no in-progress turn.
+	 */
+	cancelSession(sessionId: string): boolean {
+		const controller = this.activeTurnControllers.get(sessionId)
+		if (!controller) return false
+		controller.abort()
+		this.activeTurnControllers.delete(sessionId)
+		return true
+	}
+
+	/**
 	 * Check if a session exists.
 	 */
 	hasSession(sessionId: string): boolean {
@@ -248,6 +286,7 @@ export class SandboxAgentManager {
 	 * Delete a session.
 	 */
 	deleteSession(sessionId: string): boolean {
+		this.cancelSession(sessionId)
 		this.snapshots.delete(sessionId)
 		this.sessionLabels.delete(sessionId)
 		return this.sessions.delete(sessionId)

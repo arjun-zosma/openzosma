@@ -15,7 +15,7 @@ interface GatewayStreamEvent extends Omit<AgentStreamEvent, "type"> {
 }
 import { useQueryClient } from "@tanstack/react-query"
 import type { FileUIPart } from "ai"
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { toast } from "sonner"
 import type {
 	ChatAttachment,
@@ -40,6 +40,7 @@ type UseChatStreamReturn = {
 	streamingreasoning: string
 	streamingartifacts: FileArtifact[]
 	handlesubmit: (message: SubmitMessage) => Promise<void>
+	handlecancel: () => void
 }
 
 const useChatStream = (
@@ -50,6 +51,9 @@ const useChatStream = (
 	const queryClient = useQueryClient()
 	const { mutateAsync: saveMessage } = useSaveMessage()
 	const { data: session } = useSession()
+
+	/** Ref to the active WebSocket so handlecancel can reach it across renders. */
+	const wsRef = useRef<WebSocket | null>(null)
 
 	const [streaming, setStreaming] = useState(false)
 	const [streamingcontent, setStreamingcontent] = useState("")
@@ -138,6 +142,7 @@ const useChatStream = (
 			try {
 				const wsurl = `${GATEWAY_URL.replace(/^http/, "ws")}/ws`
 				const ws = new WebSocket(wsurl)
+				wsRef.current = ws
 				let fullcontent = ""
 				let fullreasoning = ""
 				const toolcalls = new Map<string, StreamToolCall>()
@@ -293,6 +298,7 @@ const useChatStream = (
 					}
 
 					ws.onclose = () => {
+						wsRef.current = null
 						resolve()
 					}
 				})
@@ -345,6 +351,13 @@ const useChatStream = (
 		[conversationid, conversation, participants, queryClient, saveMessage, session],
 	)
 
+	const handlecancel = useCallback(() => {
+		const ws = wsRef.current
+		if (!ws || ws.readyState !== WebSocket.OPEN) return
+		ws.send(JSON.stringify({ type: "cancel", sessionId: conversationid }))
+		ws.close()
+	}, [conversationid])
+
 	return {
 		streaming,
 		streamingcontent,
@@ -353,6 +366,7 @@ const useChatStream = (
 		streamingreasoning,
 		streamingartifacts,
 		handlesubmit,
+		handlecancel,
 	}
 }
 

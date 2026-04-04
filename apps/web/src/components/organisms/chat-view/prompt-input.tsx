@@ -27,11 +27,13 @@ import { useCallback, useRef, useState } from "react"
 
 const PromptInput = ({
 	handlesubmit,
+	handlecancel,
 	hasmessages,
 	textarearef,
 	streaming,
 }: {
 	handlesubmit: (msg: { text: string; files: FileUIPart[] }) => void
+	handlecancel?: () => void
 	hasmessages: boolean
 	textarearef: React.RefObject<HTMLTextAreaElement>
 	streaming: boolean
@@ -136,7 +138,17 @@ const PromptInput = ({
 							</PopoverContent>
 						</Popover>
 					</PromptInputTools>
-					<PromptInputSubmit disabled={streaming} status={streaming ? "streaming" : undefined} />
+					<PromptInputSubmit
+						status={streaming ? "streaming" : undefined}
+						onClick={
+							streaming && handlecancel
+								? (e) => {
+										e.preventDefault()
+										handlecancel()
+									}
+								: undefined
+						}
+					/>
 				</PromptInputFooter>
 			</PromptInputComponent>
 		</div>

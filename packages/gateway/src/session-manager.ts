@@ -249,6 +249,20 @@ export class SessionManager {
 		return this.sessions.get(id)?.workspaceDir
 	}
 
+	/**
+	 * Cancel the active turn for a session.
+	 *
+	 * In orchestrator mode, delegates to the sandbox-server's cancel endpoint.
+	 * In local mode, cancellation is handled via the AbortSignal passed to
+	 * sendMessage (the WebSocket handler in ws.ts manages those controllers).
+	 */
+	async cancelSession(id: string): Promise<boolean> {
+		if (this.orchestrator) {
+			return this.orchestrator.cancelSession(id)
+		}
+		return false
+	}
+
 	deleteSession(id: string): boolean {
 		if (this.orchestrator) {
 			const session = this.sessions.get(id)

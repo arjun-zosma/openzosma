@@ -414,20 +414,19 @@ export function createSandboxApp(): Hono {
 	})
 
 	/**
-	 * POST /sessions/:id/cancel -- cancel the current turn.
+	 * POST /sessions/:id/cancel -- cancel the active turn for a session.
 	 *
-	 * This is a placeholder. The actual cancellation happens when the client
-	 * disconnects from the SSE stream (abort signal fires).
+	 * Aborts any in-flight LLM call or tool execution for the session without
+	 * destroying the session or its message history. The session remains usable
+	 * for further messages after cancellation.
 	 */
 	app.post("/sessions/:id/cancel", (c) => {
 		const sessionId = c.req.param("id")
 		if (!agent.hasSession(sessionId)) {
 			return c.json({ error: "Session not found" }, 404)
 		}
-		// Cancellation is handled by the SSE abort signal in sendMessage.
-		// A dedicated cancel mechanism would require tracking active generators,
-		// which will be added if needed.
-		return c.json({ ok: true })
+		const cancelled = agent.cancelSession(sessionId)
+		return c.json({ ok: true, cancelled })
 	})
 
 	// -----------------------------------------------------------------------

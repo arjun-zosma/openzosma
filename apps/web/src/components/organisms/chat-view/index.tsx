@@ -29,6 +29,7 @@ const ChatView = () => {
 		streamingreasoning,
 		streamingartifacts,
 		handlesubmit,
+		handlecancel,
 	} = useChatStream(conversationid, conversation, participants)
 
 	const { artifacts, hasfiles } = useSessionArtifacts(conversationid, streamingartifacts)
@@ -94,6 +95,7 @@ const ChatView = () => {
 						<div className="w-full max-w-2xl">
 							<PromptInput
 								handlesubmit={handlesubmit}
+								handlecancel={handlecancel}
 								hasmessages={hasmessages}
 								textarearef={textarearef as React.RefObject<HTMLTextAreaElement>}
 								streaming={streaming}
@@ -157,6 +159,7 @@ const ChatView = () => {
 									<div className="max-w-3xl mx-auto w-full px-4 py-3">
 										<PromptInput
 											handlesubmit={handlesubmit}
+											handlecancel={handlecancel}
 											hasmessages={hasmessages}
 											textarearef={textarearef as React.RefObject<HTMLTextAreaElement>}
 											streaming={streaming}
