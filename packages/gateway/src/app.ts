@@ -303,6 +303,15 @@ export const createApp = (
 		return c.json({ role: "assistant", content: text })
 	})
 
+	app.post("/api/v1/sessions/:id/cancel", requirePermission("sessions", "write"), async (c) => {
+		const session = sessionManager.getSession(c.req.param("id"))
+		if (!session) {
+			return c.json({ error: "Session not found" }, 404)
+		}
+		const cancelled = await sessionManager.cancelSession(c.req.param("id"))
+		return c.json({ ok: true, cancelled })
+	})
+
 	app.get("/api/v1/sessions/:id/messages", requirePermission("sessions", "read"), (c) => {
 		const session = sessionManager.getSession(c.req.param("id"))
 		if (!session) {

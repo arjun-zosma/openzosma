@@ -78,7 +78,8 @@ RUN npm install -g \
     chart.js \
     chartjs-node-canvas \
     d3 \
-    exceljs
+    exceljs \
+    pi-interactive-shell
 
 # ---------------------------------------------------------------------------
 # Stage 2: Runtime
@@ -97,6 +98,7 @@ FROM node:22-slim
 # tini: PID 1 / signal handling.
 # git, curl, wget, jq, less, tree, unzip, zip: general-purpose CLI tools for the agent.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     curl \
     git \
     iproute2 \
