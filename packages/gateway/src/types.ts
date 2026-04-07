@@ -62,6 +62,8 @@ export type WsClientMessage =
 			attachments?: WsAttachment[]
 	  }
 	| { type: "cancel"; sessionId: string }
+	| { type: "steer"; sessionId: string; content: string; userId?: string }
+	| { type: "followUp"; sessionId: string; content: string; userId?: string }
 	| { type: "ping" }
 
 /** A file attachment included in a WebSocket message. */

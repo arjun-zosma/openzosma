@@ -456,6 +456,16 @@ class PiAgentSession implements AgentSession {
 		}
 	}
 
+	async steer(content: string): Promise<void> {
+		const session = await this.sessionPromise
+		await session.steer(content)
+	}
+
+	async followUp(content: string): Promise<void> {
+		const session = await this.sessionPromise
+		await session.followUp(content)
+	}
+
 	getMessages(): AgentMessage[] {
 		return this.messages
 	}

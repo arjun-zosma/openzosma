@@ -23,6 +23,14 @@ const RenderAgentContent = ({ message, onPreviewArtifact }: RenderAgentContentPr
 					if (seg.type === "files") {
 						return <ArtifactCardList key={`files-${i}`} artifacts={seg.artifacts} onPreview={onPreviewArtifact} />
 					}
+					if (seg.type === "steer") {
+						return (
+							<div key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground italic py-0.5">
+								<span className="font-medium not-italic">↩</span>
+								{seg.content}
+							</div>
+						)
+					}
 					const tool = toolmap.get(seg.toolcallid)
 					if (!tool) return null
 					return <ToolActivityPill key={seg.toolcallid} tool={tool} />

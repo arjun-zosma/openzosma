@@ -53,3 +53,4 @@ export type MessageSegment =
 	| { type: "text"; content: string }
 	| { type: "tool"; toolcallid: string }
 	| { type: "files"; artifacts: FileArtifact[] }
+	| { type: "steer"; content: string; sentat: string }

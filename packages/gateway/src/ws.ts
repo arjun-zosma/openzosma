@@ -35,6 +35,22 @@ export function handleWebSocket(ws: WebSocket, sessionManager: SessionManager): 
 			return
 		}
 
+		if (msg.type === "steer") {
+			sessionManager.steer(msg.sessionId, msg.content, msg.userId).catch((err: unknown) => {
+				const error = err instanceof Error ? err.message : "steer failed"
+				send(ws, { type: "error", error })
+			})
+			return
+		}
+
+		if (msg.type === "followUp") {
+			sessionManager.followUp(msg.sessionId, msg.content, msg.userId).catch((err: unknown) => {
+				const error = err instanceof Error ? err.message : "followUp failed"
+				send(ws, { type: "error", error })
+			})
+			return
+		}
+
 		if (msg.type === "message") {
 			// Cancel any existing turn for this session
 			const existing = activeTurns.get(msg.sessionId)

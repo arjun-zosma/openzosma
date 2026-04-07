@@ -91,7 +91,7 @@ const PromptInput = ({
 			<PromptInputComponent onSubmit={wrappedHandleSubmit} className="rounded-2xl border shadow-lg">
 				<PromptInputAttachments>{(file) => <PromptInputAttachment data={file} />}</PromptInputAttachments>
 				<PromptInputTextarea
-					placeholder={hasmessages ? "Type a message..." : "Ask anything..."}
+					placeholder={streaming ? "Type /btw to redirect, or queue a follow-up..." : hasmessages ? "Type a message..." : "Ask anything..."}
 					ref={textarearef}
 					value={inputValue}
 					onChange={(e) => setInputValue(e.target.value)}
@@ -143,8 +143,12 @@ const PromptInput = ({
 						onClick={
 							streaming && handlecancel
 								? (e) => {
-										e.preventDefault()
-										handlecancel()
+										// Empty input while streaming → cancel the stream
+										// Non-empty input while streaming → submit as steer/followUp
+										if (!inputValue.trim()) {
+											e.preventDefault()
+											handlecancel()
+										}
 									}
 								: undefined
 						}

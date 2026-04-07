@@ -12,6 +12,8 @@ class StubSession implements AgentSession {
 	getMessages() {
 		return []
 	}
+	async steer(_content: string): Promise<void> {}
+	async followUp(_content: string): Promise<void> {}
 }
 
 /** Stub provider that captures createSession calls for inspection. */

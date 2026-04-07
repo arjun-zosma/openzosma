@@ -374,6 +374,26 @@ export class OrchestratorSessionManager {
 	}
 
 	/**
+	 * Deliver a steering message to an active session turn.
+	 */
+	async steer(sessionId: string, _userId: string, content: string): Promise<void> {
+		const session = this.sessions.get(sessionId)
+		if (!session) return
+		const client = this.sandboxManager.getHttpClient(session.userId)
+		await client.steer(sessionId, content)
+	}
+
+	/**
+	 * Queue a follow-up message for after the current turn ends.
+	 */
+	async followUp(sessionId: string, _userId: string, content: string): Promise<void> {
+		const session = this.sessions.get(sessionId)
+		if (!session) return
+		const client = this.sandboxManager.getHttpClient(session.userId)
+		await client.followUp(sessionId, content)
+	}
+
+	/**
 	 * Cancel an active turn for a session.
 	 */
 	async cancelSession(sessionId: string): Promise<boolean> {

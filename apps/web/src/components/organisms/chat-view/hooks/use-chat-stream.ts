@@ -15,7 +15,7 @@ interface GatewayStreamEvent extends Omit<AgentStreamEvent, "type"> {
 }
 import { useQueryClient } from "@tanstack/react-query"
 import type { FileUIPart } from "ai"
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import type {
 	ChatAttachment,
@@ -39,6 +39,8 @@ type UseChatStreamReturn = {
 	streamingsegments: MessageSegment[]
 	streamingreasoning: string
 	streamingartifacts: FileArtifact[]
+	/** Messages queued as follow-ups during an active stream. Cleared when the turn ends. */
+	queuedmessages: string[]
 	handlesubmit: (message: SubmitMessage) => Promise<void>
 	handlecancel: () => void
 }
@@ -54,6 +56,14 @@ const useChatStream = (
 
 	/** Ref to the active WebSocket so handlecancel can reach it across renders. */
 	const wsRef = useRef<WebSocket | null>(null)
+	/**
+	 * Segments accumulated during the active turn (text, tool, files, steer).
+	 * Kept as a ref so the steer path (a separate handlesubmit invocation) can
+	 * append to the same array that the streaming closure uses, preserving timeline order.
+	 */
+	const segmentsRef = useRef<MessageSegment[]>([])
+	/** Messages queued during an active stream, drained one-at-a-time as fresh turns after the stream ends. */
+	const queuedRef = useRef<string[]>([])
 
 	const [streaming, setStreaming] = useState(false)
 	const [streamingcontent, setStreamingcontent] = useState("")
@@ -61,10 +71,35 @@ const useChatStream = (
 	const [streamingsegments, setStreamingsegments] = useState<MessageSegment[]>([])
 	const [streamingreasoning, setStreamingreasoning] = useState("")
 	const [streamingartifacts, setStreamingartifacts] = useState<FileArtifact[]>([])
+	const [queuedmessages, setQueuedmessages] = useState<string[]>([])
 
 	const handlesubmit = useCallback(
 		async (message: SubmitMessage) => {
 			if (!message.text.trim() && message.files.length === 0) return
+
+			// During an active stream, route to steer or followUp on the existing WS.
+			// /btw <text> → steer (interrupt mid-turn)
+			// Any other text  → followUp (queue for after the current turn)
+			if (streaming) {
+				const ws = wsRef.current
+				if (!ws || ws.readyState !== WebSocket.OPEN) return
+				const text = message.text.trim()
+				if (!text) return
+				if (text.startsWith("/btw ")) {
+					const content = text.slice(5).trim()
+					if (!content) return
+					const sentat = new Date().toISOString()
+					ws.send(JSON.stringify({ type: "steer", sessionId: conversationid, content, userId: session?.user?.id }))
+					// Push into the shared segments ref so it's saved with the agent message
+					segmentsRef.current.push({ type: "steer", content, sentat })
+					setStreamingsegments([...segmentsRef.current])
+				} else {
+					// Queue locally; auto-submitted as a fresh turn after the current stream ends
+					queuedRef.current = [...queuedRef.current, text]
+					setQueuedmessages([...queuedRef.current])
+				}
+				return
+			}
 
 			const userid = conversation?.createdby || "unknown"
 
@@ -138,6 +173,7 @@ const useChatStream = (
 			setStreamingsegments([])
 			setStreamingreasoning("")
 			setStreamingartifacts([])
+			segmentsRef.current = []
 
 			try {
 				const wsurl = `${GATEWAY_URL.replace(/^http/, "ws")}/ws`
@@ -146,7 +182,6 @@ const useChatStream = (
 				let fullcontent = ""
 				let fullreasoning = ""
 				const toolcalls = new Map<string, StreamToolCall>()
-				const segments: MessageSegment[] = []
 				const allartifacts: FileArtifact[] = []
 
 				const updatetoolcalls = () => {
@@ -154,7 +189,7 @@ const useChatStream = (
 				}
 
 				const updatesegments = () => {
-					setStreamingsegments([...segments])
+					setStreamingsegments([...segmentsRef.current])
 				}
 
 				await new Promise<void>((resolve, reject) => {
@@ -195,11 +230,11 @@ const useChatStream = (
 								if (evt.text) {
 									fullcontent += evt.text
 									setStreamingcontent(fullcontent)
-									const last = segments[segments.length - 1]
+									const last = segmentsRef.current[segmentsRef.current.length - 1]
 									if (last?.type === "text") {
 										last.content += evt.text
 									} else {
-										segments.push({ type: "text", content: evt.text })
+										segmentsRef.current.push({ type: "text", content: evt.text })
 									}
 									updatesegments()
 								}
@@ -222,7 +257,7 @@ const useChatStream = (
 										args: parsedargs,
 										state: "calling",
 									})
-									segments.push({ type: "tool", toolcallid: toolCallId })
+									segmentsRef.current.push({ type: "tool", toolcallid: toolCallId })
 									updatetoolcalls()
 									updatesegments()
 								}
@@ -256,7 +291,7 @@ const useChatStream = (
 											result: toolResult,
 											iserror: isToolError,
 										})
-										segments.push({ type: "tool", toolcallid: toolCallId })
+										segmentsRef.current.push({ type: "tool", toolcallid: toolCallId })
 										updatesegments()
 									}
 									updatetoolcalls()
@@ -268,7 +303,7 @@ const useChatStream = (
 									allartifacts.push(...evt.artifacts)
 									setStreamingartifacts([...allartifacts])
 									// Add a files segment to the chat stream
-									segments.push({ type: "files", artifacts: [...evt.artifacts] })
+									segmentsRef.current.push({ type: "files", artifacts: [...evt.artifacts] })
 									updatesegments()
 								}
 								break
@@ -313,18 +348,17 @@ const useChatStream = (
 				}))
 
 				try {
+					const savedSegments = segmentsRef.current
 					await saveMessage({
 						conversationid,
 						payload: {
 							sendertype: "agent",
 							senderid: agentparticipant.participantid,
 							content: fullcontent,
-							metadata:
-								toolcalls.size > 0
-									? { toolcalls: Array.from(toolcalls.values()), segments }
-									: segments.length > 0
-										? { segments }
-										: {},
+							metadata: {
+								...(toolcalls.size > 0 ? { toolcalls: Array.from(toolcalls.values()) } : {}),
+								...(savedSegments.length > 0 ? { segments: savedSegments } : {}),
+							},
 							attachments: artifactattachments.length > 0 ? artifactattachments : undefined,
 						},
 					})
@@ -348,7 +382,7 @@ const useChatStream = (
 			setStreamingreasoning("")
 			setStreamingartifacts([])
 		},
-		[conversationid, conversation, participants, queryClient, saveMessage, session],
+		[conversationid, conversation, participants, queryClient, saveMessage, session, streaming],
 	)
 
 	const handlecancel = useCallback(() => {
@@ -356,7 +390,18 @@ const useChatStream = (
 		if (!ws || ws.readyState !== WebSocket.OPEN) return
 		ws.send(JSON.stringify({ type: "cancel", sessionId: conversationid }))
 		ws.close()
+		queuedRef.current = []
+		setQueuedmessages([])
 	}, [conversationid])
+
+	/** Drain one queued message as a fresh turn each time streaming ends. */
+	useEffect(() => {
+		if (streaming || queuedRef.current.length === 0) return
+		const [next, ...rest] = queuedRef.current
+		queuedRef.current = rest
+		setQueuedmessages(rest)
+		handlesubmit({ text: next, files: [] })
+	}, [streaming, handlesubmit])
 
 	return {
 		streaming,
@@ -365,6 +410,7 @@ const useChatStream = (
 		streamingsegments,
 		streamingreasoning,
 		streamingartifacts,
+		queuedmessages,
 		handlesubmit,
 		handlecancel,
 	}

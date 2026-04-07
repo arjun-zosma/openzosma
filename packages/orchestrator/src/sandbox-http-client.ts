@@ -147,6 +147,28 @@ export class SandboxHttpClient {
 		}
 	}
 
+	async steer(sessionId: string, content: string): Promise<void> {
+		const res = await this.fetch(`/sessions/${sessionId}/steer`, {
+			method: "POST",
+			body: JSON.stringify({ content }),
+		})
+		if (!res.ok) {
+			const text = await res.text().catch(() => `HTTP ${res.status}`)
+			throw new Error(`Sandbox steer failed (${res.status}): ${text}`)
+		}
+	}
+
+	async followUp(sessionId: string, content: string): Promise<void> {
+		const res = await this.fetch(`/sessions/${sessionId}/followup`, {
+			method: "POST",
+			body: JSON.stringify({ content }),
+		})
+		if (!res.ok) {
+			const text = await res.text().catch(() => `HTTP ${res.status}`)
+			throw new Error(`Sandbox followUp failed (${res.status}): ${text}`)
+		}
+	}
+
 	// -----------------------------------------------------------------------
 	// File upload
 	// -----------------------------------------------------------------------
