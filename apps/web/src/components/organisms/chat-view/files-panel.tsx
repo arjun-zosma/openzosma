@@ -19,7 +19,7 @@ const FilesPanel = ({ artifacts, onClose, onPreview }: FilesPanelProps) => {
 	const { conversationid } = useParams<{ conversationid: string }>()
 
 	return (
-		<div className="flex flex-col h-full w-80 border-l bg-background shrink-0">
+		<div className="flex flex-col h-full w-full absolute inset-0 z-20 md:relative md:inset-auto md:w-80 md:shrink-0 border-l bg-background">
 			{/* Panel header */}
 			<div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
 				<div className="flex items-center gap-2">

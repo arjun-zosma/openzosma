@@ -3,6 +3,10 @@ import { Skeleton } from "@/src/components/ui/skeleton"
 const DashboardLoadingLayout = () => {
 	return (
 		<div className="flex w-full flex-1 flex-col overflow-hidden md:flex-row h-screen">
+			{/* Mobile header skeleton */}
+			<div className="flex md:hidden items-center justify-end h-10 px-4 bg-neutral-100 dark:bg-neutral-800">
+				<Skeleton className="h-5 w-5 rounded" />
+			</div>
 			{/* Sidebar skeleton */}
 			<div className="hidden md:flex md:flex-col w-[300px] shrink-0 bg-sidebar px-4 py-4 gap-6">
 				{/* Logo */}

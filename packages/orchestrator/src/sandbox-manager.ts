@@ -123,8 +123,8 @@ export class SandboxManager {
 		}
 
 		// Due to OpenShell's network namespace isolation, the pod IP is
-		// unreachable from the host. We always use localhost with the
-		// forwarded port established by `openshell forward start`.
+		// unreachable from the host. We use localhost with the forwarded port
+		// (`sandbox create --forward` on first create, or `forward start` on reconnect).
 		const port = state.forwardedPort ?? this.config.agentPort
 		return new SandboxHttpClient("localhost", port)
 	}
@@ -545,10 +545,9 @@ export class SandboxManager {
 			const info = await this.openshell.create(record.sandboxName, config)
 			log.info("Sandbox ready", { sandbox: record.sandboxName, phase: info.phase })
 
-			// Start port forwarding so the orchestrator can reach the sandbox-server.
-			// The local and remote port must be the same (OpenShell CLI constraint).
-			log.info("Starting port forward", { port, sandbox: record.sandboxName })
-			await this.openshell.forwardStart(record.sandboxName, port)
+			// Port forward is set via `sandbox create --forward <port>` (see
+			// OpenShellClient.create). A separate `forward start` blocks until
+			// timeout while the long-lived create process holds the CLI session.
 
 			// Inject environment variables into the running sandbox.
 			// This MUST succeed -- the entrypoint waits for /sandbox/.env

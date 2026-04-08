@@ -28,6 +28,7 @@ const ChatView = () => {
 		streamingsegments,
 		streamingreasoning,
 		streamingartifacts,
+		queuedmessages,
 		handlesubmit,
 		handlecancel,
 	} = useChatStream(conversationid, conversation, participants)
@@ -142,6 +143,19 @@ const ChatView = () => {
 												isstreaming={streaming}
 												onPreviewArtifact={handlePreviewArtifact}
 											/>
+										)}
+
+										{queuedmessages.length > 0 && (
+											<div className="flex flex-col gap-1 pl-10">
+												{queuedmessages.map((msg, i) => (
+													<div
+														key={i}
+														className="self-end max-w-[80%] rounded-2xl rounded-br-sm bg-muted px-4 py-2 text-sm text-muted-foreground opacity-60"
+													>
+														{msg}
+													</div>
+												))}
+											</div>
 										)}
 									</ConversationContent>
 									<ConversationScrollButton />

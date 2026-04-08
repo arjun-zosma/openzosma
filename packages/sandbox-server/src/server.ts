@@ -414,6 +414,54 @@ export function createSandboxApp(): Hono {
 	})
 
 	/**
+	 * POST /sessions/:id/steer -- deliver a steering message to a running turn.
+	 *
+	 * The message is queued and delivered between tool calls, before the next
+	 * LLM call, allowing the user to redirect the agent mid-turn.
+	 */
+	app.post("/sessions/:id/steer", async (c) => {
+		const sessionId = c.req.param("id")
+		if (!agent.hasSession(sessionId)) {
+			return c.json({ error: "Session not found" }, 404)
+		}
+		let body: { content: string }
+		try {
+			body = await c.req.json<{ content: string }>()
+		} catch {
+			return c.json({ error: "Invalid request body" }, 400)
+		}
+		if (!body.content) {
+			return c.json({ error: "content is required" }, 400)
+		}
+		await agent.steer(sessionId, body.content)
+		return c.json({ ok: true })
+	})
+
+	/**
+	 * POST /sessions/:id/followup -- queue a follow-up message for after the turn ends.
+	 *
+	 * The message is delivered only once the agent has no more tool calls or
+	 * steering messages remaining in the current turn.
+	 */
+	app.post("/sessions/:id/followup", async (c) => {
+		const sessionId = c.req.param("id")
+		if (!agent.hasSession(sessionId)) {
+			return c.json({ error: "Session not found" }, 404)
+		}
+		let body: { content: string }
+		try {
+			body = await c.req.json<{ content: string }>()
+		} catch {
+			return c.json({ error: "Invalid request body" }, 400)
+		}
+		if (!body.content) {
+			return c.json({ error: "content is required" }, 400)
+		}
+		await agent.followUp(sessionId, body.content)
+		return c.json({ ok: true })
+	})
+
+	/**
 	 * POST /sessions/:id/cancel -- cancel the active turn for a session.
 	 *
 	 * Aborts any in-flight LLM call or tool execution for the session without

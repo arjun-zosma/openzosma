@@ -3,8 +3,9 @@ import { cn } from "@/src/lib/utils"
 import { IconMenu2, IconX } from "@tabler/icons-react"
 import { AnimatePresence, motion } from "motion/react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import type React from "react"
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
 
 type Links = {
 	label: string
@@ -98,6 +99,16 @@ export const DesktopSidebar = ({ className, children, ...props }: React.Componen
 
 export const MobileSidebar = ({ className, children, ...props }: React.ComponentProps<"div">) => {
 	const { open, setOpen } = useSidebar()
+	const pathname = usePathname()
+	const prevPathname = useRef(pathname)
+
+	useEffect(() => {
+		if (prevPathname.current !== pathname) {
+			setOpen(false)
+			prevPathname.current = pathname
+		}
+	}, [pathname, setOpen])
+
 	return (
 		<>
 			<div

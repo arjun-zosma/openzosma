@@ -258,6 +258,24 @@ export class SandboxAgentManager {
 	}
 
 	/**
+	 * Deliver a steering message to the active turn of a session.
+	 */
+	async steer(sessionId: string, content: string): Promise<void> {
+		const session = this.sessions.get(sessionId)
+		if (!session) throw new Error(`Session ${sessionId} not found`)
+		await session.steer(content)
+	}
+
+	/**
+	 * Queue a follow-up message for after the current turn ends.
+	 */
+	async followUp(sessionId: string, content: string): Promise<void> {
+		const session = this.sessions.get(sessionId)
+		if (!session) throw new Error(`Session ${sessionId} not found`)
+		await session.followUp(content)
+	}
+
+	/**
 	 * Cancel the active turn for a session.
 	 *
 	 * Aborts the in-flight LLM call / tool execution without destroying the

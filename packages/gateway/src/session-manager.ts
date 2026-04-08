@@ -250,6 +250,39 @@ export class SessionManager {
 	}
 
 	/**
+	 * Deliver a steering message to an active session turn.
+	 *
+	 * Interrupts the agent mid-turn (after current tool calls, before next LLM call).
+	 * No-op if the session does not exist or no turn is active.
+	 */
+	async steer(sessionId: string, content: string, userId?: string): Promise<void> {
+		if (this.orchestrator) {
+			if (!userId) return
+			await this.orchestrator.steer(sessionId, userId, content)
+			return
+		}
+		const state = this.sessions.get(sessionId)
+		if (!state) return
+		await state.agentSession.steer(content)
+	}
+
+	/**
+	 * Queue a follow-up message to be processed after the current agent turn ends.
+	 *
+	 * No-op if the session does not exist.
+	 */
+	async followUp(sessionId: string, content: string, userId?: string): Promise<void> {
+		if (this.orchestrator) {
+			if (!userId) return
+			await this.orchestrator.followUp(sessionId, userId, content)
+			return
+		}
+		const state = this.sessions.get(sessionId)
+		if (!state) return
+		await state.agentSession.followUp(content)
+	}
+
+	/**
 	 * Cancel the active turn for a session.
 	 *
 	 * In orchestrator mode, delegates to the sandbox-server's cancel endpoint.

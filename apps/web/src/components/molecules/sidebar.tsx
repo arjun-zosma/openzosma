@@ -13,7 +13,13 @@ import {
 	AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/src/components/ui/avatar"
-import { Sidebar as RootSidebar, SidebarBody, SidebarLink, useSidebar } from "@/src/components/ui/sidebar"
+import {
+	MobileSidebar,
+	Sidebar as RootSidebar,
+	SidebarBody,
+	SidebarLink,
+	useSidebar,
+} from "@/src/components/ui/sidebar"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/src/components/ui/tooltip"
 import { useSession } from "@/src/lib/auth-client"
 import { cn } from "@/src/lib/utils"
@@ -36,7 +42,7 @@ interface SidebarContentProps {
 }
 
 const SidebarContent = ({ collapsed, threadpanelopen, setthreadpanelopen }: SidebarContentProps) => {
-	const { open } = useSidebar()
+	const { open, setOpen } = useSidebar()
 	const { data } = useSession()
 	const { user } = data ?? {}
 	const { name, image } = user ?? {}
@@ -225,6 +231,9 @@ const Sidebar = () => {
 
 	return (
 		<RootSidebar open={open} setOpen={setOpen} animate={true}>
+			<MobileSidebar>
+				<SidebarContent collapsed={false} threadpanelopen={false} setthreadpanelopen={setthreadpanelopen} />
+			</MobileSidebar>
 			<SidebarBody
 				className={cn(threadpanelopen ? "!p-0 justify-start gap-0" : "justify-between gap-10")}
 				{...(threadpanelopen ? { animate: { width: "400px" } } : {})}

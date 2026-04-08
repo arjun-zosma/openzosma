@@ -1,4 +1,4 @@
-import { type ChildProcess, execFile, spawn } from "node:child_process"
+import { type ChildProcess, type StdioOptions, execFile, spawn } from "node:child_process"
 import { mkdtempSync, readdirSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, join, relative } from "node:path"
@@ -79,6 +79,12 @@ export class OpenShellClient {
 		}
 		if (config.gpu) {
 			args.push("--gpu")
+		}
+		// Establish port forwarding in this same `sandbox create` session. A
+		// separate `openshell forward start` while this long-running create
+		// process is alive typically blocks until exec timeout (global CLI lock).
+		if (config.command && config.command.length > 0 && config.agentPort != null && config.agentPort > 0) {
+			args.push("--forward", String(config.agentPort))
 		}
 		if (config.command) {
 			args.push("--no-tty", "--", ...config.command)
@@ -312,12 +318,19 @@ export class OpenShellClient {
 	/**
 	 * Start port forwarding to a sandbox in the background.
 	 *
+	 * Uses `stdio: "ignore"` because `execFile` defaults to piped stdio; the
+	 * tunnel subprocess spawned under `-d` can inherit those pipes and keep
+	 * them open, so Node would wait until `timeout` even though the CLI
+	 * printed success (TTY sessions do not hit this).
+	 *
 	 * @param name Sandbox name.
 	 * @param port Port to forward (e.g. 8080).
 	 * @returns The local port that was forwarded.
 	 */
 	async forwardStart(name: string, port: number): Promise<number> {
-		await this.run(["forward", "start", "-d", String(port), name], 30_000)
+		await this.run(["forward", "start", "-d", String(port), name], DEFAULT_CLI_TIMEOUT_MS, {
+			stdio: "ignore",
+		})
 		return port
 	}
 
@@ -402,17 +415,29 @@ export class OpenShellClient {
 	private async run(
 		args: string[],
 		timeoutMs: number = DEFAULT_CLI_TIMEOUT_MS,
+		opts?: { stdio?: StdioOptions },
 	): Promise<{ stdout: string; stderr: string }> {
 		try {
 			return await execFileAsync(this.bin, args, {
 				timeout: timeoutMs,
 				maxBuffer: 10 * 1024 * 1024,
 				env: { ...process.env, NO_COLOR: "1" },
+				...(opts?.stdio !== undefined ? { stdio: opts.stdio } : {}),
 			})
 		} catch (err: unknown) {
-			const e = err as { message?: string; stderr?: string; code?: number | string }
+			const e = err as {
+				message?: string
+				stderr?: string
+				code?: number | string
+				killed?: boolean
+			}
+			const base = e.message ?? "openshell CLI command failed"
+			const message =
+				e.killed === true
+					? `${base} (CLI killed after ${timeoutMs}ms — likely execFile timeout; for \`forward start\`, check gateway reachability, OPENSHELL_GATEWAY / OPENSHELL_GATEWAY_ENDPOINT, and try \`openshell forward start -vv -d <port> <sandbox>\` manually)`
+					: base
 			throw new OpenShellCliError(
-				e.message ?? "openshell CLI command failed",
+				message,
 				`${this.bin} ${args.join(" ")}`,
 				e.stderr,
 				typeof e.code === "number" ? e.code : undefined,

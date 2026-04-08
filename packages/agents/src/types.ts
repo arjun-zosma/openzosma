@@ -121,6 +121,17 @@ export interface AgentSession {
 	sendMessage(content: string, signal?: AbortSignal): AsyncGenerator<AgentStreamEvent>
 	/** Get all messages in this session. */
 	getMessages(): AgentMessage[]
+	/**
+	 * Queue a steering message while the agent is running.
+	 * Delivered after the current tool calls finish, before the next LLM call.
+	 * Use to redirect the agent mid-turn without waiting for it to finish.
+	 */
+	steer(content: string): Promise<void>
+	/**
+	 * Queue a follow-up message to be processed after the agent fully finishes.
+	 * Use to chain the next task naturally after the current turn concludes.
+	 */
+	followUp(content: string): Promise<void>
 }
 
 /** Provider that creates agent sessions. */

@@ -65,7 +65,12 @@ export interface SandboxConfig {
 	env?: Record<string, string>
 	/** Whether the sandbox should have GPU access. */
 	gpu?: boolean
-	/** Port the agent server listens on inside the sandbox. */
+	/**
+	 * Port the agent server listens on inside the sandbox.
+	 * When set together with `command`, `sandbox create` receives `--forward`
+	 * so localhost can reach that port without a second `openshell forward start`
+	 * (which would block while the create session is open).
+	 */
 	agentPort?: number
 	/**
 	 * Command to run inside the sandbox (passed after `--`).
