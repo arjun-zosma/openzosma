@@ -1,22 +1,5 @@
 "use client"
-
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/src/components/ui/alert-dialog"
 import { Button } from "@/src/components/ui/button"
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu"
 import { Input } from "@/src/components/ui/input"
 import { ScrollArea } from "@/src/components/ui/scroll-area"
 import { Skeleton } from "@/src/components/ui/skeleton"
@@ -24,15 +7,11 @@ import useDeleteConversation from "@/src/hooks/chat/use-delete-conversation"
 import useGetConversations from "@/src/hooks/chat/use-get-conversations"
 import { cn } from "@/src/lib/utils"
 import type { ConversationSummary } from "@/src/services/chat.services"
-import { IconChevronLeft, IconDotsVertical, IconMessageCircle, IconSearch, IconTrash, IconX } from "@tabler/icons-react"
+import { IconChevronLeft, IconMessageCircle, IconSearch, IconTrash, IconX } from "@tabler/icons-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
-
-// ---------------------------------------------------------------------------
-// Date grouping
-// ---------------------------------------------------------------------------
 
 interface DateGroup {
 	label: string
@@ -69,10 +48,6 @@ const groupByDate = (conversations: ConversationSummary[]): DateGroup[] => {
 	return groups.filter((g) => g.items.length > 0)
 }
 
-// ---------------------------------------------------------------------------
-// Skeleton
-// ---------------------------------------------------------------------------
-
 const ConversationSkeleton = () => (
 	<div className="flex flex-col gap-0.5 px-2 pt-4">
 		{[70, 50, 80, 55, 65, 45, 75].map((w, i) => (
@@ -84,35 +59,24 @@ const ConversationSkeleton = () => (
 	</div>
 )
 
-// ---------------------------------------------------------------------------
-// Thread item
-// ---------------------------------------------------------------------------
-
 interface ThreadItemProps {
 	conv: ConversationSummary
 	isactive: boolean
-	onRequestDelete: (id: string) => void
+	onRequestDelete: (id: string) => Promise<unknown>
 }
 
 const ThreadItem = ({ conv, isactive, onRequestDelete }: ThreadItemProps) => (
 	<div
 		className={cn(
-			// overflow-hidden + w-full ensure the text truncation chain is complete
-			// and nothing leaks outside the item box
 			"group relative flex items-center w-full overflow-hidden rounded-md transition-colors",
 			isactive ? "bg-accent" : "hover:bg-accent/50",
 		)}
 	>
-		{/*
-		 * min-w-0 on the link allows it to shrink below content width in flex.
-		 * pr-7 (28px) reserves space for the 24px options button + 4px gap.
-		 * Without pr-7 the button overlaps the text.
-		 */}
 		<Link
 			href={`/chat/${conv.id}`}
 			className={cn(
-				"flex-1 min-w-0 px-3 py-2 pr-7 rounded-md",
-				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+				"flex-1 min-w-0 px-3 py-2 pr-7 rounded-md max-w-96",
+				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ",
 			)}
 		>
 			<p
@@ -130,52 +94,32 @@ const ThreadItem = ({ conv, isactive, onRequestDelete }: ThreadItemProps) => (
 			)}
 		</Link>
 
-		{/* Options button — absolute so it doesn't affect link width */}
 		<div
 			className={cn(
 				"absolute right-1 top-1/2 -translate-y-1/2 shrink-0 transition-opacity",
 				"opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
-				isactive && "opacity-100",
 			)}
 		>
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="h-6 w-6 text-muted-foreground hover:text-foreground"
-						aria-label="Thread options"
-					>
-						<IconDotsVertical className="size-3.5" />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end" className="w-36">
-					<DropdownMenuItem
-						className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/10"
-						onSelect={() => onRequestDelete(conv.id)}
-					>
-						<IconTrash className="size-3.5" />
-						Delete
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
+			<Button
+				size={"icon"}
+				variant={"outline"}
+				className="bg-transparent hover:bg-transparent border-none"
+				onClick={() => onRequestDelete(conv.id)}
+			>
+				<IconTrash color="red" />
+			</Button>
 		</div>
 	</div>
 )
-
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
 
 interface ChatSidebarProps {
 	onClose: () => void
 }
 
 const ChatSidebar = ({ onClose }: ChatSidebarProps) => {
-	const router = useRouter()
 	const pathname = usePathname()
 	const [search, setSearch] = useState("")
-	const [pendingdeleteid, setPendingdeleteid] = useState<string | null>(null)
+	const router = useRouter()
 
 	const activeconversationid = pathname.split("/chat/")[1] ?? null
 
@@ -195,28 +139,21 @@ const ChatSidebar = ({ onClose }: ChatSidebarProps) => {
 
 	const groups = useMemo(() => groupByDate(filtered), [filtered])
 
-	const handleDeleteConfirm = async () => {
-		if (!pendingdeleteid) return
-		const id = pendingdeleteid
-		setPendingdeleteid(null)
+	const handleDelete = async (id: string) => {
 		try {
 			await deleteConversation.mutateAsync(id)
 			toast.success("Conversation deleted")
-			if (activeconversationid === id) router.push("/chat")
-		} catch {
-			toast.error("Failed to delete conversation")
+			router.push("/chat")
+		} catch (error) {
+			toast.error("Failed to delete conversation", {
+				description: (error as Error).message,
+			})
 		}
 	}
 
 	return (
 		<>
-			{/*
-			 * h-full fills the motion.div wrapper in sidebar.tsx (which itself
-			 * fills the DesktopSidebar container). flex flex-col lets ScrollArea
-			 * take the remaining height via flex-1.
-			 */}
 			<div className="flex flex-col h-full w-full bg-sidebar border-r">
-				{/* ── Header ── */}
 				<div className="flex items-center gap-1.5 px-4 pt-4 pb-3 shrink-0 border-b border-border/50">
 					<button
 						type="button"
@@ -229,7 +166,6 @@ const ChatSidebar = ({ onClose }: ChatSidebarProps) => {
 					<span className="text-sm font-semibold flex-1 text-foreground select-none">Threads</span>
 				</div>
 
-				{/* ── Search ── */}
 				<div className="px-3 py-2.5 shrink-0">
 					<div className="relative">
 						<IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
@@ -252,7 +188,6 @@ const ChatSidebar = ({ onClose }: ChatSidebarProps) => {
 					</div>
 				</div>
 
-				{/* ── Thread list ── */}
 				<ScrollArea className="flex-1 min-h-0">
 					{loading ? (
 						<ConversationSkeleton />
@@ -286,7 +221,7 @@ const ChatSidebar = ({ onClose }: ChatSidebarProps) => {
 												key={conv.id}
 												conv={conv}
 												isactive={activeconversationid === conv.id}
-												onRequestDelete={setPendingdeleteid}
+												onRequestDelete={handleDelete}
 											/>
 										))}
 									</div>
@@ -296,27 +231,6 @@ const ChatSidebar = ({ onClose }: ChatSidebarProps) => {
 					)}
 				</ScrollArea>
 			</div>
-
-			{/* ── Delete confirmation ── */}
-			<AlertDialog open={pendingdeleteid !== null} onOpenChange={(open) => !open && setPendingdeleteid(null)}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete thread?</AlertDialogTitle>
-						<AlertDialogDescription>
-							This will permanently delete the conversation and all its messages. This cannot be undone.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={handleDeleteConfirm}
-							className="bg-destructive text-white hover:bg-destructive/90"
-						>
-							Delete
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
 		</>
 	)
 }

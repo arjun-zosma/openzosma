@@ -10,7 +10,8 @@ export const LAST_LEGAL_UPDATE_DATE: string = format(new Date(2025, 10, 27), "MM
 
 export const IS_DEV = process.env.NODE_ENV === "development"
 
-export const GATEWAY_URL: string = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "http://localhost:4000"
+export const GATEWAY_URL: string =
+	process.env.GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL ?? "http://localhost:4000"
 
 /**
  * Root directory for the knowledge base filesystem.

@@ -49,6 +49,9 @@ COPY packages/sandbox-server/package.json packages/sandbox-server/
 COPY packages/agents/package.json packages/agents/
 COPY packages/logger/package.json packages/logger/
 COPY packages/memory/package.json packages/memory/
+COPY packages/db/package.json packages/db/
+COPY packages/integrations/package.json packages/integrations/
+COPY packages/skills/reports/package.json packages/skills/reports/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -57,6 +60,10 @@ RUN pnpm install --frozen-lockfile
 COPY packages/ packages/
 
 RUN pnpm --filter @openzosma/logger run build
+RUN pnpm --filter @openzosma/memory run build
+RUN pnpm --filter @openzosma/db run build
+RUN pnpm --filter @openzosma/integrations run build
+RUN pnpm --filter @openzosma/skill-reports run build
 RUN pnpm --filter @openzosma/agents run build
 RUN pnpm --filter @openzosma/sandbox-server run build
 
