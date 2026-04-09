@@ -14,7 +14,6 @@ Delegate tasks through natural conversation from WhatsApp, Slack, or a web dashb
   <a href="https://github.com/zosmaai/openzosma/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/zosmaai/openzosma/ci.yml?branch=main&style=flat-square&label=CI" alt="CI" /></a>
   <a href="https://www.npmjs.com/package/create-openzosma"><img src="https://img.shields.io/npm/v/create-openzosma?style=flat-square&color=cb3837&label=npm" alt="npm" /></a>
   <a href="https://discord.gg/ZVjdnyMN"><img src="https://img.shields.io/badge/Discord-Join-7289DA?style=flat-square&logo=discord&logoColor=white" alt="Discord" /></a>
-  <a href="https://discord.gg/ZVjdnyMN"><img src="https://img.shields.io/badge/Discord-Join-7289DA?style=flat-square&logo=discord&logoColor=white" alt="Discord" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen?style=flat-square" alt="Node.js >= 22" />
   <img src="https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
 </p>
