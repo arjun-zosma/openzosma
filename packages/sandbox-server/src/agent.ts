@@ -115,6 +115,7 @@ export class SandboxAgentManager {
 		systemPrompt?: string
 		systemPromptPrefix?: string
 		toolsEnabled?: string[]
+		memoryDir?: string
 	}): string {
 		const sessionId = opts?.sessionId ?? randomUUID()
 
@@ -142,6 +143,7 @@ export class SandboxAgentManager {
 			systemPrompt: opts?.systemPrompt,
 			systemPromptPrefix: effectivePrefix,
 			toolsEnabled: opts?.toolsEnabled,
+			memoryDir: opts?.memoryDir,
 		})
 
 		this.sessions.set(sessionId, agentSession)

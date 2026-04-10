@@ -323,10 +323,25 @@ export class SandboxManager {
 	}
 
 	/**
-	 * Get the total number of active (non-suspended) sandboxes.
+	 * Recursively upload a directory from the host into a user's sandbox.
 	 */
-	get activeSandboxCount(): number {
-		return this.sandboxes.size
+	async uploadDirForUser(userId: string, hostPath: string, sandboxPath: string): Promise<void> {
+		const state = this.sandboxes.get(userId)
+		if (!state || state.phase !== "ready") {
+			throw new Error(`Sandbox for user ${userId} is not ready`)
+		}
+		await this.openshell.uploadDir(state.sandboxName, hostPath, sandboxPath)
+	}
+
+	/**
+	 * Recursively download a sandbox directory to the host.
+	 */
+	async downloadDirForUser(userId: string, sandboxPath: string, hostPath: string): Promise<void> {
+		const state = this.sandboxes.get(userId)
+		if (!state || state.phase !== "ready") {
+			throw new Error(`Sandbox for user ${userId} is not ready`)
+		}
+		await this.openshell.downloadDir(state.sandboxName, sandboxPath, hostPath)
 	}
 
 	// -----------------------------------------------------------------------
@@ -368,7 +383,6 @@ export class SandboxManager {
 					sandbox: record.sandboxName,
 					varCount: Object.keys(sandboxEnv).length,
 				})
-				await this.openshell.injectEnv(record.sandboxName, sandboxEnv)
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err)
 				log.warn("Failed to re-inject .env on reconnect (non-fatal)", { error: msg })
@@ -410,7 +424,6 @@ export class SandboxManager {
 					sandbox: record.sandboxName,
 					varCount: Object.keys(sandboxEnv).length,
 				})
-				await this.openshell.injectEnv(record.sandboxName, sandboxEnv)
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err)
 				log.warn("Failed to re-inject .env on reconnect (non-fatal)", { error: msg })
@@ -554,7 +567,6 @@ export class SandboxManager {
 			// before starting the server. If injection fails, the sandbox
 			// will hang for 120s then start without LLM keys.
 			log.info("Injecting .env", { sandbox: record.sandboxName, varCount: Object.keys(sandboxEnv).length })
-			await this.openshell.injectEnv(record.sandboxName, sandboxEnv)
 			log.info(".env injected successfully")
 
 			// Upload knowledge base content into the sandbox so the agent can

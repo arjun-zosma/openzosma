@@ -8,7 +8,10 @@
 
 import { completeSimple } from "@mariozechner/pi-ai"
 import type { Api, Model } from "@mariozechner/pi-ai"
+import { createLogger } from "@openzosma/logger"
 import type { ExtractedFact } from "@openzosma/zosma-mem/bridge"
+
+const log = createLogger({ component: "zosma-mem" })
 
 const EXTRACTION_SYSTEM_PROMPT = `You are extracting user preferences and facts from conversations for long-term memory.
 
@@ -66,6 +69,7 @@ export const extractFacts = async (
 			.trim()
 
 		if (!text) {
+			log.warn("LLM returned empty text")
 			return []
 		}
 
@@ -74,9 +78,17 @@ export const extractFacts = async (
 			.replace(/^```(?:json)?\s*/i, "")
 			.replace(/\s*```$/, "")
 			.trim()
-		const parsed: unknown = JSON.parse(stripped)
+
+		let parsed: unknown
+		try {
+			parsed = JSON.parse(stripped)
+		} catch (parseErr) {
+			log.warn("JSON parse failed", { error: parseErr, rawText: stripped.slice(0, 200) })
+			return []
+		}
 
 		if (!Array.isArray(parsed)) {
+			log.warn("LLM returned non-array", { type: typeof parsed })
 			return []
 		}
 
@@ -89,8 +101,10 @@ export const extractFacts = async (
 				Array.isArray((item as Record<string, unknown>).tags),
 		)
 
+		log.info("Extracted facts", { extracted: validFacts.length, total: parsed.length })
 		return validFacts
 	} catch (err) {
+		log.error("LLM call failed", { error: err instanceof Error ? err.message : String(err) })
 		return []
 	}
 }

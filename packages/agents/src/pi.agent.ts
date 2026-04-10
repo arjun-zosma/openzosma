@@ -57,6 +57,7 @@ class PiAgentSession implements AgentSession {
 	private memoryBridge: MemoryBridge
 	private model: Model<Api>
 	private apiKey: string
+	private inFlightExtracts = new Set<Promise<void>>()
 
 	constructor(opts: AgentSessionOpts) {
 		const { model, apiKey } = resolveModel({
@@ -70,6 +71,7 @@ class PiAgentSession implements AgentSession {
 		// Stable memory dir: use the explicit memoryDir from opts if provided,
 		// otherwise fall back to the default path inside the workspace.
 		const memoryDir = opts.memoryDir ?? join(opts.workspaceDir, ".pi", "agent", "memory")
+		log.info("Memory directory set", { memoryDir })
 		this.memoryBridge = createMemoryBridge({ memoryDir })
 
 		const toolList = [...createDefaultTools(opts.workspaceDir, opts.toolsEnabled)]
@@ -142,12 +144,18 @@ class PiAgentSession implements AgentSession {
 		// Retrieve relevant memories and track which ones we injected.
 		// We'll use this to record reinforcement signals later.
 		let injectedMemoryIds: string[] = []
+		let memoryContextBlock = ""
 		try {
 			const { context: memoryContext, ids: injectedIds } = await this.memoryBridge.loadContext(content)
 			injectedMemoryIds = injectedIds
+			log.info("Loaded memory context", {
+				memories: injectedIds.length,
+				query: content.slice(0, 80),
+				contextLength: memoryContext?.length ?? 0,
+			})
 			if (memoryContext) {
-				await session.steer(memoryContext)
-				log.info("Memory context injected via steer()", {
+				memoryContextBlock = memoryContext
+				log.info("Memory context will be prepended to user message", {
 					length: memoryContext.length,
 					injectedIds: injectedMemoryIds.length,
 				})
@@ -158,7 +166,10 @@ class PiAgentSession implements AgentSession {
 			})
 		}
 
-		const promptContent = content
+		// Prepend memory context directly into the prompt so the LLM sees it as
+		// grounding context alongside the user message. steer() is designed for
+		// mid-stream interrupts and is not reliable as a pre-turn injection.
+		const promptContent = memoryContextBlock ? `${memoryContextBlock}\n\nUser message: ${content}` : content
 
 		const userMsg: AgentMessage = {
 			id: randomUUID(),
@@ -534,7 +545,7 @@ class PiAgentSession implements AgentSession {
 			// Post-turn memory ingestion: extract memorable facts from this exchange
 			// and store them so future conversations can recall them.
 			// This is non-blocking and non-critical — errors are logged and ignored.
-			extractFacts(this.model, this.apiKey, content, fullResponseText)
+			const extractPromise = extractFacts(this.model, this.apiKey, content, fullResponseText)
 				.then((facts) => {
 					if (facts.length === 0) return
 					log.info("Memory: ingesting extracted facts", { count: facts.length })
@@ -545,6 +556,8 @@ class PiAgentSession implements AgentSession {
 						error: err instanceof Error ? err.message : String(err),
 					})
 				})
+			this.inFlightExtracts.add(extractPromise)
+			extractPromise.finally(() => this.inFlightExtracts.delete(extractPromise))
 		}
 	}
 
@@ -564,6 +577,8 @@ class PiAgentSession implements AgentSession {
 
 	/** Shutdown the session — run GC and shut down the memory bridge. */
 	async dispose(): Promise<void> {
+		// Await any in-flight extractFacts promises to ensure no facts are dropped on shutdown
+		await Promise.allSettled([...this.inFlightExtracts])
 		try {
 			await this.memoryBridge.gc()
 		} catch (err) {

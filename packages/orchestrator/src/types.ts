@@ -68,6 +68,8 @@ export interface OrchestratorSession {
 	sandboxName: string
 	/** Agent config ID (optional). */
 	agentConfigId?: string
+	/** Host memory directory for persistence. */
+	memoryDir?: string
 	/** When the session was created. */
 	createdAt: string
 }
@@ -94,6 +96,7 @@ export interface SandboxCreateSessionRequest {
 	systemPromptPrefix?: string
 	toolsEnabled?: string[]
 	agentConfigId?: string
+	memoryDir?: string
 }
 
 export interface SandboxCreateSessionResponse {

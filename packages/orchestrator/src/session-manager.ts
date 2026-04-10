@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto"
+import { mkdirSync } from "node:fs"
+import { existsSync, readdirSync } from "node:fs"
+import { dirname, join, resolve } from "node:path"
 import type { AgentStreamEvent } from "@openzosma/agents"
 import type { AgentConfig, Pool, Skill, UserSandbox } from "@openzosma/db"
 import { agentConfigQueries, skillQueries, userSandboxQueries } from "@openzosma/db"
@@ -35,12 +38,14 @@ const buildSkillsPrefix = (skills: Skill[]): string | null => {
 export class OrchestratorSessionManager {
 	private readonly pool: Pool
 	private readonly sandboxManager: SandboxManager
+	private readonly workspaceRoot: string
 	/** In-memory session registry: sessionId -> session metadata. */
 	private readonly sessions = new Map<string, OrchestratorSession>()
 
-	constructor(pool: Pool, sandboxManager: SandboxManager) {
+	constructor(pool: Pool, sandboxManager: SandboxManager, workspaceRoot?: string) {
 		this.pool = pool
 		this.sandboxManager = sandboxManager
+		this.workspaceRoot = workspaceRoot ?? resolve(process.env.OPENZOSMA_WORKSPACE ?? join(process.cwd(), "workspace"))
 	}
 
 	// -----------------------------------------------------------------------
@@ -63,6 +68,7 @@ export class OrchestratorSessionManager {
 				systemPromptPrefix?: string
 				toolsEnabled?: string[]
 			}
+			memoryDir?: string
 		},
 	): Promise<OrchestratorSession> {
 		const sessionId = opts?.sessionId ?? randomUUID()
@@ -181,6 +187,20 @@ export class OrchestratorSessionManager {
 			systemPromptPrefixLength: agentConfig.systemPromptPrefix?.length ?? 0,
 		})
 
+		// Compute stable memory directory for persistence across sandbox restarts.
+		// hostMemoryDir is the path on the orchestrator host. sandboxMemoryDir is the
+		// fixed path inside the sandbox. The basename must match so that
+		// `openshell sandbox upload/download` (which appends the basename) lands in
+		// the right place.
+		const hostMemoryDir =
+			opts?.memoryDir ?? join(this.workspaceRoot, "agents", opts?.agentConfigId ?? "default", "memory")
+		mkdirSync(hostMemoryDir, { recursive: true })
+		// Fixed sandbox-side path. openshell upload/download preserve the dir basename,
+		// so uploading hostMemoryDir (".../.../memory") to "/workspace/" creates
+		// "/workspace/memory/" in the sandbox, and downloading "/workspace/memory/"
+		// to dirname(hostMemoryDir) recreates "hostMemoryDir" exactly.
+		const sandboxMemoryDir = "/workspace/memory"
+
 		await client.createSession({
 			sessionId,
 			provider: agentConfig.provider,
@@ -189,7 +209,26 @@ export class OrchestratorSessionManager {
 			systemPromptPrefix: agentConfig.systemPromptPrefix,
 			toolsEnabled: agentConfig.toolsEnabled,
 			agentConfigId: opts?.agentConfigId,
+			// Pass the sandbox-side path so the agent writes facts to the right place
+			memoryDir: sandboxMemoryDir,
 		})
+
+		// Upload existing memory files into the sandbox for persistence.
+		// openshell upload appends the basename, so uploading hostMemoryDir to
+		// "/workspace/" results in "/workspace/memory/" in the sandbox.
+		const hasFiles = existsSync(hostMemoryDir) && readdirSync(hostMemoryDir).length > 0
+		if (hasFiles) {
+			try {
+				await this.sandboxManager.uploadDirForUser(userId, hostMemoryDir, "/workspace/")
+				log.info("Uploaded existing memory files to sandbox", { sessionId, hostMemoryDir })
+			} catch (err) {
+				log.warn("Failed to upload memory files (non-fatal)", {
+					sessionId,
+					hostMemoryDir,
+					error: err instanceof Error ? err.message : String(err),
+				})
+			}
+		}
 
 		// Track the session in the sandbox state
 		sandboxState.activeSessions.add(sessionId)
@@ -199,6 +238,7 @@ export class OrchestratorSessionManager {
 			userId,
 			sandboxName: sandboxState.sandboxName,
 			agentConfigId: opts?.agentConfigId,
+			memoryDir: hostMemoryDir,
 			createdAt: new Date().toISOString(),
 		}
 
@@ -221,6 +261,23 @@ export class OrchestratorSessionManager {
 	async deleteSession(sessionId: string): Promise<boolean> {
 		const session = this.sessions.get(sessionId)
 		if (!session) return false
+
+		// Download memory files back to host before deleting the session.
+		// openshell download appends the source basename, so downloading
+		// "/workspace/memory/" to dirname(hostMemoryDir) recreates hostMemoryDir.
+		if (session.memoryDir) {
+			const parentDir = dirname(session.memoryDir)
+			try {
+				await this.sandboxManager.downloadDirForUser(session.userId, "/workspace/memory/", parentDir)
+				log.info("Downloaded memory files from sandbox", { sessionId, memoryDir: session.memoryDir })
+			} catch (err) {
+				log.warn("Failed to download memory files (non-fatal)", {
+					sessionId,
+					memoryDir: session.memoryDir,
+					error: err instanceof Error ? err.message : String(err),
+				})
+			}
+		}
 
 		// Remove from sandbox
 		try {
