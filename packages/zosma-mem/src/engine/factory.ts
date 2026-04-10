@@ -1,4 +1,5 @@
 import { runGc } from "../gc/index.js"
+import { CommitIndexer } from "../ingestion/commit-indexer.js"
 import { ingest as doIngest } from "../ingestion/ingest.js"
 import { retrieve as doRetrieve } from "../retrieval/retrieve.js"
 import { loadCoAccess, saveCoAccess } from "../store/co-access.js"
@@ -26,6 +27,12 @@ export const createMemoryEngine = (config: MemoryConfig): MemoryEngine => {
 
 	const coAccess = loadCoAccess(resolved.memoryDir)
 
+	const indexer = new CommitIndexer({
+		memoryDir: resolved.memoryDir,
+		store,
+		salienceConfig: { salienceThreshold: resolved.salienceThreshold, now: resolved.now },
+	})
+
 	let gcTimer: ReturnType<typeof setInterval> | undefined
 	if (resolved.gcIntervalMs > 0) {
 		gcTimer = setInterval(() => {
@@ -37,6 +44,10 @@ export const createMemoryEngine = (config: MemoryConfig): MemoryEngine => {
 	const engine: MemoryEngine = {
 		ingest: async (event: MemoryEvent) => {
 			doIngest(event, store, { salienceThreshold: resolved.salienceThreshold, now: getNow })
+		},
+
+		reindex: async () => {
+			return indexer.reindexAll()
 		},
 
 		retrieve: async (query: AttentionQuery, topK = 5) => {
@@ -67,6 +78,7 @@ export const createMemoryEngine = (config: MemoryConfig): MemoryEngine => {
 
 		shutdown: () => {
 			if (gcTimer) clearInterval(gcTimer)
+			indexer.stopWatch()
 		},
 	}
 

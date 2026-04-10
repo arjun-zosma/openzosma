@@ -6,6 +6,8 @@
  * into the zosma-mem bridge. Extension path resolution lives in @openzosma/zosma-mem.
  */
 
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 import { completeSimple } from "@mariozechner/pi-ai"
 import type { Api, Model } from "@mariozechner/pi-ai"
 import { createLogger } from "@openzosma/logger"
@@ -106,5 +108,38 @@ export const extractFacts = async (
 	} catch (err) {
 		log.error("LLM call failed", { error: err instanceof Error ? err.message : String(err) })
 		return []
+	}
+}
+
+/**
+ * Ensure the pi-brain `.memory/` structure exists in the workspace.
+ * pi-brain's tools return a hard error if state.yaml is missing — this silently
+ * creates the minimal structure so the extension works without requiring the user
+ * to run brain-init.sh manually.
+ *
+ * Idempotent: safe to call on every session start.
+ */
+export const ensureBrainInit = (workspaceDir: string): void => {
+	const memDir = join(workspaceDir, ".memory")
+	const branchDir = join(memDir, "branches", "main")
+	const stateFile = join(memDir, "state.yaml")
+
+	mkdirSync(branchDir, { recursive: true })
+
+	if (!existsSync(join(branchDir, "log.md"))) {
+		writeFileSync(join(branchDir, "log.md"), "")
+	}
+	if (!existsSync(join(branchDir, "commits.md"))) {
+		writeFileSync(join(branchDir, "commits.md"), "# main\n\n**Purpose:** Main project memory branch\n")
+	}
+	if (!existsSync(join(branchDir, "metadata.yaml"))) {
+		writeFileSync(join(branchDir, "metadata.yaml"), "")
+	}
+	if (!existsSync(join(memDir, "main.md"))) {
+		writeFileSync(join(memDir, "main.md"), "")
+	}
+	if (!existsSync(stateFile)) {
+		const now = new Date().toISOString()
+		writeFileSync(stateFile, `active_branch: main\ninitialized: "${now}"\n`)
 	}
 }

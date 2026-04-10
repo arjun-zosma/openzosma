@@ -64,6 +64,12 @@ export interface GcReport {
 
 export interface MemoryEngine {
 	ingest: (event: MemoryEvent) => Promise<void>
+	/**
+	 * Re-index all pi-brain branches in .memory/branches/.
+	 * Idempotent — already-processed commits are skipped.
+	 * Returns the number of newly ingested entities.
+	 */
+	reindex: () => Promise<number>
 	retrieve: (query: AttentionQuery, topK?: number) => Promise<ScoredEntity[]>
 	recordRead: (entityId: string) => Promise<void>
 	recordIgnoredRead: (entityId: string) => Promise<void>

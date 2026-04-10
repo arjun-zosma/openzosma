@@ -23,7 +23,13 @@ export const retrieve = (
 	topK = 5,
 ): ScoredEntity[] => {
 	const nowFn = config.now ?? Date.now
-	const taskTerms = new Set(query.taskDescription.toLowerCase().split(/\s+/))
+	const taskTerms = new Set(
+		query.taskDescription
+			.toLowerCase()
+			.split(/\s+/)
+			.map((t) => t.replace(/[^a-z0-9]/g, ""))
+			.filter((t) => t.length > 0),
+	)
 	// Intent tags (e.g. ["auth", "session"]) get a higher weight — they are
 	// explicit signals about what the agent is working on right now.
 	const intentTags: Set<string> = query.intent

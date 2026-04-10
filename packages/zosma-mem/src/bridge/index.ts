@@ -41,7 +41,9 @@ export interface MemoryBridge {
 	 * Retrieve memories relevant to the current user message and format them
 	 * as a system prompt section. Returns an empty string when no memories exist.
 	 */
-	loadContext: (userMessage: string) => Promise<{ context: string; ids: string[] }>
+	loadContext: (
+		userMessage: string,
+	) => Promise<{ context: string; ids: string[]; entities: Array<{ id: string; content: string }> }>
 
 	/**
 	 * Ingest a batch of already-extracted facts into the salience engine.
@@ -107,10 +109,12 @@ export const createMemoryBridge = (config: BridgeConfig): MemoryBridge => {
 
 	const topK = config.topK ?? 8
 
-	const loadContext = async (userMessage: string): Promise<{ context: string; ids: string[] }> => {
+	const loadContext = async (
+		userMessage: string,
+	): Promise<{ context: string; ids: string[]; entities: Array<{ id: string; content: string }> }> => {
 		const results = await engine.retrieve({ taskDescription: userMessage }, topK)
 
-		if (results.length === 0) return { context: "", ids: [] }
+		if (results.length === 0) return { context: "", ids: [], entities: [] }
 
 		const memories = results.map((r) => ({
 			id: r.entity.id,
@@ -127,7 +131,8 @@ export const createMemoryBridge = (config: BridgeConfig): MemoryBridge => {
 		}
 
 		const ids = memories.map((m) => m.id)
-		return { context: formatContext(memories), ids }
+		const entities = memories.map((m) => ({ id: m.id, content: m.content }))
+		return { context: formatContext(memories), ids, entities }
 	}
 
 	const ingestFacts = async (facts: ExtractedFact[]): Promise<void> => {

@@ -13,7 +13,7 @@ import { createLogger } from "@openzosma/logger"
 import { createMemoryBridge, resolveMemoryExtensionPaths } from "@openzosma/zosma-mem/bridge"
 import type { MemoryBridge } from "@openzosma/zosma-mem/bridge"
 import { DEFAULT_SYSTEM_PROMPT } from "./pi/config.js"
-import { extractFacts } from "./pi/memory.js"
+import { ensureBrainInit, extractFacts } from "./pi/memory.js"
 import { resolveModel } from "./pi/model.js"
 import {
 	createDefaultTools,
@@ -73,6 +73,16 @@ class PiAgentSession implements AgentSession {
 		const memoryDir = opts.memoryDir ?? join(opts.workspaceDir, ".pi", "agent", "memory")
 		log.info("Memory directory set", { memoryDir })
 		this.memoryBridge = createMemoryBridge({ memoryDir })
+
+		// Ensure pi-brain .memory/ structure exists in the workspace so its
+		// extension tools don't return "Brain not initialized" errors to the LLM.
+		try {
+			ensureBrainInit(opts.workspaceDir)
+		} catch (err) {
+			log.warn("ensureBrainInit failed (non-fatal)", {
+				error: err instanceof Error ? err.message : String(err),
+			})
+		}
 
 		const toolList = [...createDefaultTools(opts.workspaceDir, opts.toolsEnabled)]
 		const reportTools = createReportTools(opts.toolsEnabled, opts.workspaceDir)
@@ -144,10 +154,16 @@ class PiAgentSession implements AgentSession {
 		// Retrieve relevant memories and track which ones we injected.
 		// We'll use this to record reinforcement signals later.
 		let injectedMemoryIds: string[] = []
+		let injectedMemoryEntities: Array<{ id: string; content: string }> = []
 		let memoryContextBlock = ""
 		try {
-			const { context: memoryContext, ids: injectedIds } = await this.memoryBridge.loadContext(content)
+			const {
+				context: memoryContext,
+				ids: injectedIds,
+				entities: injectedEntities,
+			} = await this.memoryBridge.loadContext(content)
 			injectedMemoryIds = injectedIds
+			injectedMemoryEntities = injectedEntities
 			log.info("Loaded memory context", {
 				memories: injectedIds.length,
 				query: content.slice(0, 80),
@@ -513,19 +529,29 @@ class PiAgentSession implements AgentSession {
 			// This improves future retrieval by boosting the salience of helpful memories.
 			if (injectedMemoryIds.length > 0) {
 				try {
-					// Simple heuristic: if the response references content from injected memories,
-					// mark them as "used". This is a basic implementation — could be made more
-					// sophisticated with LLM-based correlation in the future.
+					// Content-based correlation: check whether key words from each
+					// injected memory's content appear in the response. This avoids
+					// boosting unrelated high-salience facts just because the response
+					// was non-empty.
+					const responseWords = new Set(
+						fullResponseText
+							.toLowerCase()
+							.split(/\W+/)
+							.filter((w) => w.length > 3),
+					)
 					let usedCount = 0
 					let ignoredCount = 0
 
-					for (const entityId of injectedMemoryIds) {
-						// For now, we can't easily correlate entity IDs back to content
-						// without querying the engine again. Use a simple heuristic:
-						// if the response is longer than 50 chars, assume memories were useful.
-						// TODO: Implement proper content-based correlation
-						const wasUsed = fullResponseText.length > 50
-						await this.memoryBridge.recordUsage(entityId, wasUsed ? "used" : "ignored")
+					for (const entity of injectedMemoryEntities) {
+						const contentWords = entity.content
+							.toLowerCase()
+							.split(/\W+/)
+							.filter((w) => w.length > 3)
+						const overlap = contentWords.filter((w) => responseWords.has(w)).length
+						// Require at least 2 content words to appear in the response
+						// to count as "used". Single-word matches are too noisy.
+						const wasUsed = overlap >= 2
+						await this.memoryBridge.recordUsage(entity.id, wasUsed ? "used" : "ignored")
 						if (wasUsed) usedCount++
 						else ignoredCount++
 					}
