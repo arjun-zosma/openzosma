@@ -143,7 +143,7 @@ class PiAgentSession implements AgentSession {
 		// We'll use this to record reinforcement signals later.
 		let injectedMemoryIds: string[] = []
 		try {
-			const { context: memoryContext, injectedIds } = await this.memoryBridge.loadContext(content)
+			const { context: memoryContext, ids: injectedIds } = await this.memoryBridge.loadContext(content)
 			injectedMemoryIds = injectedIds
 			if (memoryContext) {
 				await session.steer(memoryContext)
