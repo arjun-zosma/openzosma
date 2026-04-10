@@ -27,7 +27,12 @@ export const retrieve = (
 	// Intent tags (e.g. ["auth", "session"]) get a higher weight — they are
 	// explicit signals about what the agent is working on right now.
 	const intentTags: Set<string> = query.intent
-		? new Set(query.intent.toLowerCase().split(/\s+/).filter((t) => t.length > 0))
+		? new Set(
+				query.intent
+					.toLowerCase()
+					.split(/\s+/)
+					.filter((t) => t.length > 0),
+			)
 		: new Set()
 
 	const ids = store.list()
@@ -39,9 +44,7 @@ export const retrieve = (
 			const entity = store.read(id)
 			if (!entity) return null
 			const taskOverlap = entity.tags.filter((t) => taskTerms.has(t.toLowerCase())).length
-			const intentOverlap = intentTags.size > 0
-				? entity.tags.filter((t) => intentTags.has(t.toLowerCase())).length
-				: 0
+			const intentOverlap = intentTags.size > 0 ? entity.tags.filter((t) => intentTags.has(t.toLowerCase())).length : 0
 			const salience = computeSalience(entity.score, nowFn)
 
 			// Context isolation: when intent tags are provided and the entity has

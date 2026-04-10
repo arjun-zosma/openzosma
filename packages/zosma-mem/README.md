@@ -6,10 +6,7 @@ A file-based memory system with salience scoring, tag-based retrieval, and reinf
 
 ## Installation
 
-```bash
-# In OpenZosma workspace
-pnpm add @openzosma/zosma-mem
-```
+This package is part of the OpenZosma workspace.
 
 ## Core Concepts
 
@@ -137,41 +134,37 @@ Automatic cleanup runs periodically:
 - **Prune** - Remove facts below salience threshold
 - **Consolidate** - Merge similar entities
 
-```typescript
-// Manual GC
-const report = await engine.gc()
-console.log(`${report.pruned} pruned, ${report.decayed} decayed`)
+## Evaluation
+
+For internal OpenZosma evaluation, use the CLI tool to assess memory retrieval effectiveness:
+
+```bash
+# From project root, after building
+cd packages/zosma-mem
+node dist/bin/eval.js run
 ```
 
-## Configuration
+The CLI prompts for:
+- Memory directory path (e.g., `../../../workspace/agents/default/memory`)
+- Number of test cases
+- Query and expected content for each case
 
-```typescript
-interface MemoryConfig {
-  memoryDir: string                    // Required: where to store files
-  salienceThreshold?: number          // Default: 0.4
-  gcIntervalMs?: number               // Default: 3,600,000 (1 hour)
-  gcPruneCycles?: number              // Default: 1
-  summarizer?: (texts: string[]) => Promise<string>
-  now?: () => number                  // For testing
-}
+It computes recall, precision, and F1 scores.
+
+Example output:
 ```
+Evaluation Results:
+Average Recall: 85.00%
+Average Precision: 90.00%
+Average F1 Score: 87.50%
 
-## Architecture
-
-### Core Modules
-
-- **engine/** - Salience scoring, reinforcement, GC
-- **store/** - File-based entity storage with co-access patterns
-- **ingestion/** - Fact ingestion and scoring
-- **retrieval/** - Tag-based search with attention ranking
-- **gc/** - Decay, pruning, consolidation
-- **bridge/** - Agent session integration
-
-### File Storage
-
-- **Entity files**: `.salience/*.yaml` - Individual facts with scores
-- **Archive**: `.salience/archive/` - Pruned entities
-- **Co-access**: `.salience/co-access` - Access pattern correlations
+Per Test Case:
+Case 1: "UI design"
+  Recall: 100.00%
+  Precision: 100.00%
+  F1: 100.00%
+  Retrieved: 2 memories
+```
 
 ## Development
 
@@ -184,13 +177,6 @@ pnpm run test
 
 # Type check
 pnpm run check
-```
-
-## Publishing
-
-```bash
-pnpm run build && pnpm run test
-npm publish
 ```
 
 Built for OpenZosma agents, works with any AI agent framework that needs persistent cross-conversation memory. 🚀

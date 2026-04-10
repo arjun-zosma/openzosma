@@ -38,56 +38,59 @@ Return [] if nothing memorable. ONLY return the raw JSON array, no markdown form
  * Returns an empty array on any error — this is a non-critical background path.
  */
 export const extractFacts = async (
-  model: Model<Api>,
-  apiKey: string,
-  userMessage: string,
-  assistantResponse: string,
+	model: Model<Api>,
+	apiKey: string,
+	userMessage: string,
+	assistantResponse: string,
 ): Promise<ExtractedFact[]> => {
-  if (!userMessage.trim() || !assistantResponse.trim()) {
-    return []
-  }
+	if (!userMessage.trim() || !assistantResponse.trim()) {
+		return []
+	}
 
-  const prompt = `User: ${userMessage}\n\nAssistant: ${assistantResponse}`
+	const prompt = `User: ${userMessage}\n\nAssistant: ${assistantResponse}`
 
-  try {
-    const result = await completeSimple(
-      model,
-      {
-        systemPrompt: EXTRACTION_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: prompt, timestamp: Date.now() }],
-      },
-      { apiKey, maxTokens: 512 },
-    )
+	try {
+		const result = await completeSimple(
+			model,
+			{
+				systemPrompt: EXTRACTION_SYSTEM_PROMPT,
+				messages: [{ role: "user", content: prompt, timestamp: Date.now() }],
+			},
+			{ apiKey, maxTokens: 512 },
+		)
 
-    const text = result.content
-      .filter((c): c is { type: "text"; text: string } => c.type === "text")
-      .map((c) => c.text)
-      .join("")
-      .trim()
+		const text = result.content
+			.filter((c): c is { type: "text"; text: string } => c.type === "text")
+			.map((c) => c.text)
+			.join("")
+			.trim()
 
-    if (!text) {
-      return []
-    }
+		if (!text) {
+			return []
+		}
 
-    // Strip markdown code fences that some models wrap around JSON output.
-    const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim()
-    const parsed: unknown = JSON.parse(stripped)
+		// Strip markdown code fences that some models wrap around JSON output.
+		const stripped = text
+			.replace(/^```(?:json)?\s*/i, "")
+			.replace(/\s*```$/, "")
+			.trim()
+		const parsed: unknown = JSON.parse(stripped)
 
-    if (!Array.isArray(parsed)) {
-      return []
-    }
+		if (!Array.isArray(parsed)) {
+			return []
+		}
 
-    const validFacts = parsed.filter(
-      (item): item is ExtractedFact =>
-        typeof item === "object" &&
-        item !== null &&
-        typeof (item as Record<string, unknown>).content === "string" &&
-        ["preference", "decision", "pattern", "error"].includes((item as Record<string, unknown>).type as string) &&
-        Array.isArray((item as Record<string, unknown>).tags),
-    )
+		const validFacts = parsed.filter(
+			(item): item is ExtractedFact =>
+				typeof item === "object" &&
+				item !== null &&
+				typeof (item as Record<string, unknown>).content === "string" &&
+				["preference", "decision", "pattern", "error"].includes((item as Record<string, unknown>).type as string) &&
+				Array.isArray((item as Record<string, unknown>).tags),
+		)
 
-    return validFacts
-  } catch (err) {
-    return []
-  }
+		return validFacts
+	} catch (err) {
+		return []
+	}
 }

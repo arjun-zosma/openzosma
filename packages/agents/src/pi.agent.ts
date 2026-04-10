@@ -149,7 +149,7 @@ class PiAgentSession implements AgentSession {
 				await session.steer(memoryContext)
 				log.info("Memory context injected via steer()", {
 					length: memoryContext.length,
-					injectedIds: injectedMemoryIds.length
+					injectedIds: injectedMemoryIds.length,
 				})
 			}
 		} catch (err) {
@@ -519,7 +519,11 @@ class PiAgentSession implements AgentSession {
 						else ignoredCount++
 					}
 
-					log.info("Memory reinforcement recorded", { usedCount, ignoredCount, totalInjected: injectedMemoryIds.length })
+					log.info("Memory reinforcement recorded", {
+						usedCount,
+						ignoredCount,
+						totalInjected: injectedMemoryIds.length,
+					})
 				} catch (err) {
 					log.warn("Memory reinforcement failed (non-fatal)", {
 						error: err instanceof Error ? err.message : String(err),

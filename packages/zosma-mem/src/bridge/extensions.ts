@@ -19,14 +19,14 @@ const require = createRequire(import.meta.url)
  * then falls back to the package root.
  */
 const resolvePiExtension = (pkg: string): string | null => {
-  for (const entry of [`${pkg}/src/index.ts`, `${pkg}/index.ts`, pkg]) {
-    try {
-      return require.resolve(entry)
-    } catch {
-      // try next candidate
-    }
-  }
-  return null
+	for (const entry of [`${pkg}/src/index.ts`, `${pkg}/index.ts`, pkg]) {
+		try {
+			return require.resolve(entry)
+		} catch {
+			// try next candidate
+		}
+	}
+	return null
 }
 
 /**
@@ -39,22 +39,22 @@ const resolvePiExtension = (pkg: string): string | null => {
  * than expected.
  */
 export const resolveMemoryExtensionPaths = (): { paths: string[]; missing: string[] } => {
-  const extensions = [
-    { name: "pi-brain", label: "structured memory (pi-brain)" },
-    { name: "pi-dcp", label: "context pruning (pi-dcp)" },
-  ]
+	const extensions = [
+		{ name: "pi-brain", label: "structured memory (pi-brain)" },
+		{ name: "pi-dcp", label: "context pruning (pi-dcp)" },
+	]
 
-  const paths: string[] = []
-  const missing: string[] = []
+	const paths: string[] = []
+	const missing: string[] = []
 
-  for (const ext of extensions) {
-    const resolved = resolvePiExtension(ext.name)
-    if (resolved) {
-      paths.push(resolved)
-    } else {
-      missing.push(ext.label)
-    }
-  }
+	for (const ext of extensions) {
+		const resolved = resolvePiExtension(ext.name)
+		if (resolved) {
+			paths.push(resolved)
+		} else {
+			missing.push(ext.label)
+		}
+	}
 
-  return { paths, missing }
+	return { paths, missing }
 }
