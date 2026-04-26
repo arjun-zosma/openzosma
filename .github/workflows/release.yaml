@@ -37,6 +37,7 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Publishing version: $VERSION"
           npm --prefix packages/create-openzosma version "$VERSION" --no-git-tag-version --allow-same-version
+          npm --prefix packages/pi-harness version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -50,6 +51,12 @@ jobs:
       - name: Publish create-openzosma
         run: pnpm publish --access public --no-git-checks
         working-directory: packages/create-openzosma
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish pi-harness
+        run: pnpm publish --access public --no-git-checks
+        working-directory: packages/pi-harness
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
