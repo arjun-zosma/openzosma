@@ -1,6 +1,5 @@
 import { type ChildProcess, type StdioOptions, execFile, spawn } from "node:child_process"
-import { mkdtempSync, readdirSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { readdirSync } from "node:fs"
 import { basename, join, relative } from "node:path"
 import { promisify } from "node:util"
 import { createLogger } from "@openzosma/logger"
@@ -281,35 +280,37 @@ export class OpenShellClient {
 	}
 
 	/**
-	 * Write environment variables into a sandbox as `/sandbox/.env`.
+	 * Recursively download a sandbox directory to the host.
 	 *
-	 * The OpenShell CLI does not support `--env` on `sandbox create`.
-	 * Instead, we write a temporary .env file on the host and upload
-	 * it into the sandbox via `sandbox upload`.
+	 * @param name      Sandbox name.
+	 * @param remoteDir Directory inside the sandbox to download.
+	 * @param dest      Parent directory on the host (the remote dir's
+	 *                  basename is appended automatically).
 	 */
-	async injectEnv(name: string, env: Record<string, string>): Promise<void> {
-		const lines = Object.entries(env).map(([key, value]) => `${key}=${value}`)
-		const content = `${lines.join("\n")}\n`
-
-		// `openshell sandbox upload <name> <local> <dest>` treats <dest> as a
-		// directory and preserves the local filename. So the local file MUST be
-		// named `.env` and the destination MUST be the parent directory `/sandbox/`.
-		const tmpDir = mkdtempSync(join(tmpdir(), `openzosma-env-${name}-`))
-		const tmpPath = join(tmpDir, ".env")
-		writeFileSync(tmpPath, content, { mode: 0o600 })
-		try {
-			await this.upload(name, tmpPath, "/sandbox/")
-		} finally {
-			// Best-effort cleanup
-			try {
-				const { unlinkSync, rmdirSync } = await import("node:fs")
-				unlinkSync(tmpPath)
-				rmdirSync(tmpDir)
-			} catch {
-				// Ignore cleanup errors
-			}
-		}
+	async downloadDir(name: string, remoteDir: string, dest: string): Promise<void> {
+		await this.run(["sandbox", "download", name, remoteDir, dest], 60_000)
 	}
+
+	/**
+	 * Download files from the sandbox to the host.
+	 *
+	 * IMPORTANT: `openshell sandbox download` treats `dest` as a directory
+	 * and preserves the sandbox filename. To download a file to `/host/.env`,
+	 * the sandbox file must be named `.env` and `dest` must be `/host/`.
+	 *
+	 * @param name      Sandbox name.
+	 * @param remotePath Path inside the sandbox to download.
+	 * @param dest      Destination directory on the host (defaults to current dir).
+	 */
+
+	/**
+	 * Recursively download a sandbox directory to the host.
+	 *
+	 * @param name      Sandbox name.
+	 * @param remoteDir Directory inside the sandbox to download.
+	 * @param dest      Parent directory on the host (the remote dir's
+	 *                  basename is appended automatically).
+	 */
 
 	// -----------------------------------------------------------------------
 	// Port forwarding
@@ -412,7 +413,7 @@ export class OpenShellClient {
 	// Internal
 	// -----------------------------------------------------------------------
 
-	private async run(
+	public async run(
 		args: string[],
 		timeoutMs: number = DEFAULT_CLI_TIMEOUT_MS,
 		opts?: { stdio?: StdioOptions },

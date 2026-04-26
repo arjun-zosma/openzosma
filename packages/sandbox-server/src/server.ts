@@ -220,6 +220,7 @@ export function createSandboxApp(): Hono {
 				systemPrompt: body.systemPrompt,
 				systemPromptPrefix: body.systemPromptPrefix,
 				toolsEnabled: body.toolsEnabled,
+				memoryDir: body.memoryDir,
 			})
 
 			return c.json({ sessionId }, 201)

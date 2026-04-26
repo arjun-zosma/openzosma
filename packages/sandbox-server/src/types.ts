@@ -20,6 +20,8 @@ export interface CreateSessionRequest {
 	toolsEnabled?: string[]
 	/** Agent config ID (for reference). */
 	agentConfigId?: string
+	/** Host memory directory path for persistence. */
+	memoryDir?: string
 }
 
 /** Response for POST /sessions */

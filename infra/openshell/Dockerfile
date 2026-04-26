@@ -48,7 +48,7 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY packages/sandbox-server/package.json packages/sandbox-server/
 COPY packages/agents/package.json packages/agents/
 COPY packages/logger/package.json packages/logger/
-COPY packages/memory/package.json packages/memory/
+COPY packages/zosma-mem/package.json packages/zosma-mem/
 COPY packages/db/package.json packages/db/
 COPY packages/integrations/package.json packages/integrations/
 COPY packages/skills/reports/package.json packages/skills/reports/

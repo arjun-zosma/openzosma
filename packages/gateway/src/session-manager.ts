@@ -113,10 +113,13 @@ export class SessionManager {
 
 			let orchSession: Awaited<ReturnType<typeof this.orchestrator.createSession>>
 			try {
+				const workspaceRoot = resolve(process.env.OPENZOSMA_WORKSPACE ?? join(process.cwd(), "workspace"))
+				const memoryDir = join(workspaceRoot, "agents", agentConfigId ?? "default", "memory")
 				orchSession = await this.orchestrator.createSession(userId, {
 					sessionId,
 					agentConfigId,
 					resolvedConfig,
+					memoryDir,
 				})
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err)
