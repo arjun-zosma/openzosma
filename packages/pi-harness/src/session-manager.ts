@@ -3,8 +3,8 @@ import { existsSync, mkdirSync } from "node:fs"
 import { resolve } from "node:path"
 import type { AgentSession, AgentStreamEvent } from "@openzosma/agents"
 import { PiAgentProvider } from "@openzosma/agents"
-import { createLogger } from "@openzosma/logger"
 import type { HarnessConfig } from "./config.js"
+import { createLogger } from "./logger.js"
 
 const log = createLogger({ component: "pi-harness" })
 

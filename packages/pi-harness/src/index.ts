@@ -10,8 +10,8 @@
  * Environment variables: see src/config.ts
  */
 import { serve } from "@hono/node-server"
-import { createLogger } from "@openzosma/logger"
 import { loadConfig } from "./config.js"
+import { createLogger } from "./logger.js"
 import { createHarnessApp } from "./server.js"
 
 const log = createLogger({ component: "pi-harness" })

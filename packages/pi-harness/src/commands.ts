@@ -11,8 +11,8 @@ import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from "no
 import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { serve } from "@hono/node-server"
-import { createLogger } from "@openzosma/logger"
 import { loadConfig } from "./config.js"
+import { createLogger } from "./logger.js"
 import { createHarnessApp } from "./server.js"
 
 const C = {

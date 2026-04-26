@@ -11,7 +11,7 @@
  *   node scripts/build-bundle.mjs
  */
 
-import { readFileSync, writeFileSync } from "node:fs"
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import * as esbuild from "esbuild"
@@ -34,7 +34,7 @@ const EXTERNAL = [
 	"*.node",
 ]
 
-async function bundleEntry(entry, outName) {
+async function bundleEntry(entry, outName, { shebang = true } = {}) {
 	console.log(`📦 Bundling ${entry}...`)
 	await esbuild.build({
 		entryPoints: [resolve(__dirname, `../src/${entry}`)],
@@ -49,15 +49,29 @@ async function bundleEntry(entry, outName) {
 		sourcemap: true,
 	})
 
-	// Prepend shebang
-	const outPath = resolve(outDir, outName)
-	const content = readFileSync(outPath, "utf-8")
-	writeFileSync(outPath, `#!/usr/bin/env node\n${content}`, { mode: 0o755 })
+	if (shebang) {
+		const outPath = resolve(outDir, outName)
+		const content = readFileSync(outPath, "utf-8")
+		writeFileSync(outPath, `#!/usr/bin/env node\n${content}`, { mode: 0o755 })
+	}
 }
 
 async function main() {
 	await bundleEntry("cli.ts", "cli.js")
 	await bundleEntry("index.ts", "index.js")
+	await bundleEntry("server.ts", "server.js", { shebang: false })
+
+	// Remove internal session-manager outputs that reference unpublished workspace packages.
+	// session-manager is bundled into server.js/index.js and not part of the public API.
+	const toRemove = ["session-manager.d.ts", "session-manager.d.ts.map", "session-manager.js", "session-manager.js.map"]
+	for (const file of toRemove) {
+		try {
+			unlinkSync(resolve(outDir, file))
+			console.log(`   🧹 Removed ${file}`)
+		} catch {
+			/* ignore if already absent */
+		}
+	}
 
 	console.log(`\n✅ Bundles created in ${outDir}`)
 	console.log(`   External deps: ${EXTERNAL.join(", ")}`)

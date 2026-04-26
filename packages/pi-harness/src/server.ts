@@ -1,7 +1,7 @@
-import { createLogger } from "@openzosma/logger"
 import { Hono } from "hono"
 import { streamSSE } from "hono/streaming"
 import type { HarnessConfig } from "./config.js"
+import { createLogger } from "./logger.js"
 import { HarnessSessionManager } from "./session-manager.js"
 import type { CreateSessionRequest, SendMessageRequest } from "./types.js"
 

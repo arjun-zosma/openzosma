@@ -1,5 +1,12 @@
 {
-	"name": "@openzosma/pi-harness",
+	"name": "pi-harness",
+	"license": "Apache-2.0",
+	"keywords": ["pi-harness", "pi-coding-agent", "ai", "agent", "server", "sse"],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/zosmaai/openzosma.git",
+		"directory": "packages/pi-harness"
+	},
 	"version": "0.1.0",
 	"type": "module",
 	"description": "The top-level harness for the Pi ecosystem. Run pi-coding-agent and other Pi packages headlessly as a background HTTP/SSE server. Built with gratitude for Mario Zechner's pi-mono.",
@@ -35,12 +42,11 @@
 	},
 	"dependencies": {
 		"@hono/node-server": "^1.19.13",
-		"@openzosma/agents": "workspace:*",
-		"@openzosma/logger": "workspace:*",
 		"chalk": "^5.5.0",
 		"hono": "^4.12.12"
 	},
 	"devDependencies": {
+		"@openzosma/agents": "workspace:*",
 		"@types/node": "^22.15.2",
 		"esbuild": "^0.25.0",
 		"tsx": "^4.21.0",
