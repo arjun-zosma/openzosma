@@ -7,7 +7,7 @@
  */
 
 import { spawn } from "node:child_process"
-import { existsSync, readFileSync, writeFileSync, openSync, closeSync } from "node:fs"
+import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { serve } from "@hono/node-server"

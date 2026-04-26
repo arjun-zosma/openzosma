@@ -11,10 +11,10 @@
  *   node scripts/build-bundle.mjs
  */
 
-import * as esbuild from "esbuild"
 import { readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import * as esbuild from "esbuild"
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url))
 const outDir = resolve(__dirname, "../dist")
@@ -30,6 +30,8 @@ const EXTERNAL = [
 	"pg",
 	"@sinclair/typebox",
 	"@types/pg",
+	"fsevents",
+	"*.node",
 ]
 
 async function bundleEntry(entry, outName) {
@@ -50,7 +52,7 @@ async function bundleEntry(entry, outName) {
 	// Prepend shebang
 	const outPath = resolve(outDir, outName)
 	const content = readFileSync(outPath, "utf-8")
-	writeFileSync(outPath, "#!/usr/bin/env node\n" + content, { mode: 0o755 })
+	writeFileSync(outPath, `#!/usr/bin/env node\n${content}`, { mode: 0o755 })
 }
 
 async function main() {

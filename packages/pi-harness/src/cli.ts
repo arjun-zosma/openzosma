@@ -17,9 +17,9 @@
  */
 
 import { execSync } from "node:child_process"
-import { existsSync, readFileSync, unlinkSync, mkdirSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs"
 import { homedir } from "node:os"
-import { resolve, join } from "node:path"
+import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs } from "node:util"
 
@@ -145,7 +145,7 @@ async function cmdSetup(): Promise<void> {
 
 	if (!existsSync(SETUP_SCRIPT)) {
 		console.error(`${C.red}✗ Setup script not found:${C.reset} ${SETUP_SCRIPT}`)
-		console.error(`  Run setup manually or reinstall pi-harness.`)
+		console.error("  Run setup manually or reinstall pi-harness.")
 		process.exit(1)
 	}
 

@@ -9,10 +9,7 @@
 	"bin": {
 		"pi-harness": "dist/cli.js"
 	},
-	"files": [
-		"dist",
-		"scripts"
-	],
+	"files": ["dist", "scripts"],
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",

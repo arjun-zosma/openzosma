@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { stdin as input, stdout as output } from "node:process"
+import * as readline from "node:readline"
 /**
  * Pi-Harness TUI Client
  *
@@ -11,8 +13,6 @@
  *   pi-harness-tui --session <existing-id>
  */
 import chalk from "chalk"
-import * as readline from "node:readline"
-import { stdin as input, stdout as output } from "node:process"
 
 // ---------------------------------------------------------------------------
 // Config
