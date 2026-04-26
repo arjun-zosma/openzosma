@@ -1,0 +1,53 @@
+{
+	"name": "@openzosma/pi-harness",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "The top-level harness for the Pi ecosystem. Run pi-coding-agent and other Pi packages headlessly as a background HTTP/SSE server. Built with gratitude for Mario Zechner's pi-mono.",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"bin": {
+		"pi-harness": "dist/cli.js"
+	},
+	"files": ["dist", "scripts"],
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./server": {
+			"types": "./dist/server.d.ts",
+			"import": "./dist/server.js"
+		},
+		"./types": {
+			"types": "./dist/types.d.ts",
+			"import": "./dist/types.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc && pnpm build:bundle",
+		"build:bundle": "node scripts/build-bundle.mjs",
+		"check": "tsc --noEmit",
+		"start": "node dist/cli.js start",
+		"dev": "tsx src/cli.ts start",
+		"tui": "node dist/cli.js tui",
+		"setup": "bash scripts/setup.sh",
+		"setup:quick": "bash scripts/setup.sh --quick"
+	},
+	"dependencies": {
+		"@hono/node-server": "^1.19.13",
+		"@openzosma/agents": "workspace:*",
+		"@openzosma/logger": "workspace:*",
+		"chalk": "^5.5.0",
+		"hono": "^4.12.12"
+	},
+	"devDependencies": {
+		"@types/node": "^22.15.2",
+		"esbuild": "^0.25.0",
+		"tsx": "^4.21.0",
+		"typescript": "^5.7.3"
+	},
+	"engines": {
+		"node": ">=22"
+	}
+}

@@ -37,6 +37,19 @@ Delegate tasks through natural conversation from WhatsApp, Slack, or a web dashb
 
 ---
 
+## ⚡ Looking for a Standalone Agent Harness?
+
+If you want a **lightweight, deployable agent server** without the full platform (no PostgreSQL, no dashboard, no auth complexity), check out **[@openzosma/pi-harness](./packages/pi-harness)**:
+
+```bash
+npm install -g @openzosma/pi-harness
+pi-harness   # First run auto-configures, then starts the server
+```
+
+It runs `pi-coding-agent` headlessly as a background HTTP/SSE server — perfect for low-end hardware, background services, custom integrations, or when you just want the agent without the platform. [Learn more →](./packages/pi-harness)
+
+---
+
 ## Get Started
 
 One command sets up everything -- cloning, environment, Docker services, database migrations, and the first build:
@@ -128,7 +141,7 @@ You define a hierarchy of agents that mirrors your organization. Each agent has 
   <img src="assets/diagram-hierarchy.png" alt="Agent Hierarchy" width="600" />
 </div>
 
-**Example:** You message your CEO Agent from WhatsApp: *"What were last week's sales numbers and are there any open support tickets over 48 hours?"* The CEO Agent delegates to the Sales Manager Agent and Support Agent in parallel. They query your connected systems, and you get a consolidated answer back -- all from a single message on your phone.
+**Example:** You message your CEO Agent from WhatsApp: _"What were last week's sales numbers and are there any open support tickets over 48 hours?"_ The CEO Agent delegates to the Sales Manager Agent and Support Agent in parallel. They query your connected systems, and you get a consolidated answer back -- all from a single message on your phone.
 
 ---
 
@@ -140,10 +153,12 @@ You define a hierarchy of agents that mirrors your organization. Each agent has 
 
 The gateway runs in two modes controlled by `OPENZOSMA_SANDBOX_MODE`:
 
-| Mode | How it works | Best for |
-|------|-------------|----------|
-| **`local`** (default) | pi-agent runs in-process inside the gateway. No OpenShell needed. | Development |
-| **`orchestrator`** | Each user gets a persistent OpenShell sandbox. The orchestrator manages sandbox lifecycle and proxies messages via HTTP/SSE. | Production |
+| Mode                  | How it works                                                                                                                 | Best for    |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| **`local`** (default) | pi-agent runs in-process inside the gateway. No OpenShell needed.                                                            | Development |
+| **`orchestrator`**    | Each user gets a persistent OpenShell sandbox. The orchestrator manages sandbox lifecycle and proxies messages via HTTP/SSE. | Production  |
+
+> **Want just the agent, without the gateway?** [`pi-harness`](./packages/pi-harness) is the local mode extracted as a standalone, deployable package — no PostgreSQL, no dashboard, no auth complexity. One `npm install -g` and you're running.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design, data flow, and component details.
 
@@ -176,31 +191,31 @@ See [infra/openshell/README.md](./infra/openshell/README.md) for sandbox image d
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|-----------|
-| Runtime | Node.js 22 (TypeScript) |
-| HTTP Server | Hono |
-| Database | PostgreSQL (raw SQL via `pg`, migrations via `db-migrate`) |
-| Auth | Better Auth |
-| Sandbox | NVIDIA NemoClaw + OpenShell |
-| Web Dashboard | Next.js 16, React 19, Tailwind CSS v4 |
-| Mobile | React Native (planned) |
-| Agent Protocol | [Google A2A](https://github.com/google/A2A) |
-| Cache / Pub-Sub | Valkey (ioredis) |
-| Internal Comms | HTTP / SSE (orchestrator to sandbox-server) |
+| Component       | Technology                                                 |
+| --------------- | ---------------------------------------------------------- |
+| Runtime         | Node.js 22 (TypeScript)                                    |
+| HTTP Server     | Hono                                                       |
+| Database        | PostgreSQL (raw SQL via `pg`, migrations via `db-migrate`) |
+| Auth            | Better Auth                                                |
+| Sandbox         | NVIDIA NemoClaw + OpenShell                                |
+| Web Dashboard   | Next.js 16, React 19, Tailwind CSS v4                      |
+| Mobile          | React Native (planned)                                     |
+| Agent Protocol  | [Google A2A](https://github.com/google/A2A)                |
+| Cache / Pub-Sub | Valkey (ioredis)                                           |
+| Internal Comms  | HTTP / SSE (orchestrator to sandbox-server)                |
 
 ---
 
 ## Supported LLM Providers
 
-| Provider | Default model |
-|----------|--------------|
-| Anthropic | Claude Sonnet 4 |
-| OpenAI | GPT-4o |
-| Google | Gemini 2.5 Flash |
-| Groq | Llama 3.3 70B |
-| xAI | Grok 3 |
-| Mistral | Mistral Large |
+| Provider    | Default model                                       |
+| ----------- | --------------------------------------------------- |
+| Anthropic   | Claude Sonnet 4                                     |
+| OpenAI      | GPT-4o                                              |
+| Google      | Gemini 2.5 Flash                                    |
+| Groq        | Llama 3.3 70B                                       |
+| xAI         | Grok 3                                              |
+| Mistral     | Mistral Large                                       |
 | Local model | Any OpenAI-compatible endpoint (Ollama, vLLM, etc.) |
 
 ---
@@ -216,6 +231,7 @@ openzosma/
     gateway/              API gateway (REST + WebSocket + A2A)
     orchestrator/         Sandbox lifecycle, session proxying, health checks
     agents/               Agent provider interface + implementations
+    pi-harness/           Standalone headless agent server (lightweight deploy)
     sandbox/              OpenShell CLI wrapper
     sandbox-server/       HTTP server running inside sandbox containers
     db/                   Database migrations and query module
@@ -235,15 +251,16 @@ openzosma/
 
 ## Roadmap
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| [Phase 1](./docs/PHASE-1-MULTITENANT.md) | Multi-instance pi-agent refactor (in pi-mono) | Complete |
-| [Phase 2](./docs/PHASE-2-MONOREPO.md) | Monorepo setup + DB schema + auth | Complete |
-| [Phase 3](./docs/PHASE-3-GATEWAY.md) | API Gateway + A2A + auth | Complete |
-| [Phase 4](./docs/PHASE-4-ORCHESTRATOR.md) | Orchestrator + OpenShell sandbox integration | In progress |
-| [Phase 5](./docs/PHASE-5-ADAPTERS.md) | Channel adapters (Slack, WhatsApp) | Not started |
-| [Phase 6](./docs/PHASE-6-SKILLS.md) | Enterprise skills (database tool, reports) | Not started |
-| [Phase 7](./docs/PHASE-7-DASHBOARD.md) | Web dashboard | In progress (MVP) |
+| Phase                                     | Description                                                         | Status            |
+| ----------------------------------------- | ------------------------------------------------------------------- | ----------------- |
+| [Phase 1](./docs/PHASE-1-MULTITENANT.md)  | Multi-instance pi-agent refactor (in pi-mono)                       | Complete          |
+| [Phase 2](./docs/PHASE-2-MONOREPO.md)     | Monorepo setup + DB schema + auth                                   | Complete          |
+| [Phase 3](./docs/PHASE-3-GATEWAY.md)      | API Gateway + A2A + auth                                            | Complete          |
+| **Pi-Harness**                            | Standalone headless agent server ([package](./packages/pi-harness)) | Complete          |
+| [Phase 4](./docs/PHASE-4-ORCHESTRATOR.md) | Orchestrator + OpenShell sandbox integration                        | In progress       |
+| [Phase 5](./docs/PHASE-5-ADAPTERS.md)     | Channel adapters (Slack, WhatsApp)                                  | Not started       |
+| [Phase 6](./docs/PHASE-6-SKILLS.md)       | Enterprise skills (database tool, reports)                          | Not started       |
+| [Phase 7](./docs/PHASE-7-DASHBOARD.md)    | Web dashboard                                                       | In progress (MVP) |
 
 **MVP (Phases 1-4):** ~4 weeks &nbsp;|&nbsp; **Full platform (Phases 1-7):** ~10 weeks
 
@@ -251,12 +268,13 @@ openzosma/
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | System design, component interactions, data flow |
-| [CONTRIBUTING.md](./CONTRIBUTING.md) | Development setup, environment variables, conventions |
-| [packages/db/README.md](./packages/db/README.md) | Database migrations, schemas, query module |
-| [docs/](./docs/) | Phase-by-phase implementation plans |
+| Document                                                         | Description                                           |
+| ---------------------------------------------------------------- | ----------------------------------------------------- |
+| [ARCHITECTURE.md](./ARCHITECTURE.md)                             | System design, component interactions, data flow      |
+| [CONTRIBUTING.md](./CONTRIBUTING.md)                             | Development setup, environment variables, conventions |
+| [packages/db/README.md](./packages/db/README.md)                 | Database migrations, schemas, query module            |
+| [packages/pi-harness/README.md](./packages/pi-harness/README.md) | Standalone headless agent server docs                 |
+| [docs/](./docs/)                                                 | Phase-by-phase implementation plans                   |
 
 ---
 

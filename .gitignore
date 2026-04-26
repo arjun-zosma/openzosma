@@ -38,3 +38,6 @@ data/
 .knowledge-base
 
 LAUNCH-PLAYBOOK.md
+
+.obsidian/
+.pi-lens/
