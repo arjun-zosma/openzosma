@@ -1,7 +1,6 @@
 {
 	"name": "@openzosma/pi-harness",
 	"version": "0.1.0",
-	"private": true,
 	"type": "module",
 	"description": "The top-level harness for the Pi ecosystem. Run pi-coding-agent and other Pi packages headlessly as a background HTTP/SSE server. Built with gratitude for Mario Zechner's pi-mono.",
 	"main": "dist/index.js",
